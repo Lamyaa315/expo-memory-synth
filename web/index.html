@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Expo Memory Synth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  /* Design tokens: Najdi night + painted-door teal */
+  :root {
+    --night: #1D2440;     /* stage background */
+    --stone: #E6E3DA;     /* panel surface */
+    --ink: #1D2440;       /* text on stone */
+    --ink-soft: #545B78;  /* secondary text */
+    --teal: #2F7F86;      /* primary action */
+    --saffron: #D9A23A;   /* freshness signal */
+    --font: "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--night); font-family: var(--font); color: var(--ink); }
+  body { overflow: hidden; }
+
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; touch-action: none; }
+
+  .empty {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    color: var(--stone); text-align: center; padding: 2rem; pointer-events: none;
+  }
+  .empty p { max-width: 28ch; line-height: 1.8; font-weight: 300; margin: 0; }
+  .empty[hidden] { display: none; }
+
+  .panel {
+    position: fixed; z-index: 10;
+    inset-inline: 0; bottom: 0;
+    background: var(--stone);
+    border-radius: 20px 20px 0 0;
+    padding: 1.1rem 1.25rem calc(1.1rem + env(safe-area-inset-bottom, 0px));
+    max-height: 62vh; overflow-y: auto;
+    box-shadow: 0 -8px 32px rgba(10, 14, 30, .35);
+    transition: transform .35s ease;
+  }
+  .panel.collapsed { transform: translateY(calc(100% - 4.4rem - env(safe-area-inset-bottom, 0px))); }
+
+  @media (min-width: 900px) {
+    .panel {
+      inset-inline-start: 1.5rem; inset-inline-end: auto;
+      top: 1.5rem; bottom: auto; width: 380px; max-height: calc(100vh - 3rem);
+      border-radius: 14px;
+    }
+    .panel.collapsed { transform: none; }
+    .handle { display: none; }
+  }
+
+  .handle {
+    display: block; width: 100%; background: none; border: 0; padding: 0 0 .6rem; cursor: pointer;
+  }
+  .handle span { display: block; width: 44px; height: 5px; border-radius: 3px; background: #B9B5A8; margin: 0 auto; }
+
+  .fresh { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--ink-soft); margin: 0 0 .35rem; }
+  .fresh i { width: 8px; height: 8px; border-radius: 50%; background: var(--saffron); flex: none; }
+
+  h1 { font-size: 1.45rem; font-weight: 600; line-height: 1.35; margin: 0 0 .75rem; }
+  .narration { font-size: 1rem; line-height: 1.9; font-weight: 300; margin: 0 0 1rem; max-width: 60ch; }
+  .narration[dir="ltr"] { line-height: 1.7; }
+
+  .highlights { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1.1rem; padding: 0; list-style: none; }
+  .highlights li { font-size: .85rem; padding: .3rem .7rem; border: 1px solid #C9C4B5; border-radius: 999px; }
+
+  .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+  button.primary, button.ghost, label.ghost {
+    font: inherit; font-size: .95rem; border-radius: 10px; padding: .7rem 1.1rem; cursor: pointer;
+  }
+  button.primary { background: var(--teal); color: #fff; border: 0; font-weight: 600; flex: 1 1 auto; }
+  button.ghost, label.ghost { background: transparent; color: var(--ink); border: 1px solid #B9B5A8; }
+  button:focus-visible, label.ghost:focus-within { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  #fileInput { position: absolute; opacity: 0; width: 1px; height: 1px; }
+
+  .hint { font-size: .8rem; color: var(--ink-soft); margin: .9rem 0 0; line-height: 1.6; }
+
+  @media (prefers-reduced-motion: reduce) { .panel { transition: none; } }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="stage" aria-label="مشهد ثلاثي الأبعاد للجناح"></div>
+
+  <div class="empty" id="empty">
+    <p>ما فيه مشهد محمّل. اختر ملف <bdi>.ply</bdi> من جهازك، أو ضعه في مجلد <bdi>web</bdi> باسم <bdi>scene.ply</bdi>.</p>
+  </div>
+
+  <section class="panel" id="panel">
+    <button class="handle" id="handle" aria-label="إظهار أو إخفاء التفاصيل"><span></span></button>
+    <p class="fresh"><i></i><span id="fresh">صوّره زائر في الموقع</span></p>
+    <h1 id="title">جناح تراثي</h1>
+    <p class="narration" id="narration"></p>
+    <ul class="highlights" id="highlights"></ul>
+    <div class="actions">
+      <button class="primary" id="tourBtn">ابدأ الجولة الصوتية</button>
+      <button class="ghost" id="langBtn">English</button>
+      <label class="ghost">افتح مشهد
+        <input type="file" id="fileInput" accept=".ply,.splat,.ksplat">
+      </label>
+    </div>
+    <p class="hint">اسحب للدوران، وكبّر بإصبعين أو بعجلة الفأرة.</p>
+  </section>
+
+  <audio id="narrationAudio" src="audio/narration.mp3" preload="auto"></audio>
+  <audio id="ambientAudio" src="audio/ambient.mp3" preload="auto" loop></audio>
+
+<script type="module">
+import * as GS from '@mkkellogg/gaussian-splats-3d';
+
+// ---- Scene settings: tweak these if the scene appears upside down or far away ----
+const SCENE_URL = 'scene.ply';
+const CAMERA = {
+  cameraUp: [0, -1, 0],              // COLMAP scenes are usually Y-down
+  initialCameraPosition: [0, -1, -4],
+  initialCameraLookAt: [0, 0, 0],
+};
+
+const $ = (id) => document.getElementById(id);
+let viewer = null;
+let lang = 'ar';
+let story = null;
+
+// ---------- 3D viewer ----------
+async function loadScene(url, format) {
+  if (viewer) { await viewer.dispose(); viewer = null; $('stage').innerHTML = ''; }
+  viewer = new GS.Viewer({
+    ...CAMERA,
+    rootElement: $('stage'),
+    sharedMemoryForWorkers: false,   // works on plain static hosting (GitHub Pages)
+  });
+  const opts = { showLoadingUI: true, splatAlphaRemovalThreshold: 5 };
+  if (format !== undefined) opts.format = format;
+  await viewer.addSplatScene(url, opts);
+  viewer.start();
+  $('empty').hidden = true;
+}
+
+async function tryDefaultScene() {
+  try {
+    const res = await fetch(SCENE_URL, { method: 'HEAD' });
+    if (res.ok) await loadScene(SCENE_URL);
+  } catch (e) { /* no default scene: keep empty state */ }
+}
+
+$('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const name = file.name.toLowerCase();
+  const format = name.endsWith('.ksplat') ? GS.SceneFormat.KSplat
+               : name.endsWith('.splat') ? GS.SceneFormat.Splat
+               : GS.SceneFormat.Ply;
+  try {
+    await loadScene(URL.createObjectURL(file), format);
+  } catch (err) {
+    console.error(err);
+    alert('تعذّر فتح الملف. تأكد أنه ملف Gaussian Splatting بصيغة .ply أو .splat أو .ksplat');
+  }
+});
+
+// ---------- Narration ----------
+function timeAgo(iso) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (isNaN(mins)) return null;
+  if (lang === 'en') {
+    if (mins < 60) return `Captured by a visitor ${mins} min ago`;
+    if (mins < 1440) return `Captured by a visitor ${Math.round(mins / 60)} h ago`;
+    return `Captured by a visitor on ${new Date(iso).toLocaleDateString('en-GB')}`;
+  }
+  if (mins < 60) return `صوّره زائر قبل ${mins} دقيقة`;
+  if (mins < 1440) return `صوّره زائر قبل ${Math.round(mins / 60)} ساعة`;
+  return `صوّره زائر بتاريخ ${new Date(iso).toLocaleDateString('ar-SA')}`;
+}
+
+function render() {
+  if (!story) return;
+  const en = lang === 'en';
+  $('title').textContent = en ? (story.title_en || story.title) : story.title;
+  $('narration').textContent = en ? story.narration_en : story.narration_ar;
+  $('narration').dir = en ? 'ltr' : 'rtl';
+  $('highlights').innerHTML = '';
+  (story.highlights || []).forEach((h) => {
+    const li = document.createElement('li'); li.textContent = h; $('highlights').appendChild(li);
+  });
+  const ago = story.captured_at ? timeAgo(story.captured_at) : null;
+  const place = story.place ? `، ${story.place}` : '';
+  $('fresh').textContent = (ago || (en ? 'Captured by an on-site visitor' : 'صوّره زائر في الموقع')) + place;
+  $('langBtn').textContent = en ? 'العربية' : 'English';
+}
+
+async function loadStory() {
+  try {
+    const res = await fetch('narration.json');
+    story = await res.json();
+  } catch (e) {
+    story = {
+      title: 'جناح تراثي',
+      narration_ar: 'شغّل سكربت narrate.py لتوليد السرد الثقافي لهذا المشهد.',
+      narration_en: 'Run narrate.py to generate the cultural narration for this scene.',
+      highlights: [],
+    };
+  }
+  render();
+}
+
+$('langBtn').addEventListener('click', () => { lang = lang === 'ar' ? 'en' : 'ar'; render(); });
+
+// ---------- Audio tour ----------
+const narr = $('narrationAudio');
+const amb = $('ambientAudio');
+amb.volume = 0.35;
+let playing = false;
+
+$('tourBtn').addEventListener('click', async () => {
+  if (playing) {
+    narr.pause(); amb.pause(); playing = false;
+    $('tourBtn').textContent = 'كمّل الجولة الصوتية';
+    return;
+  }
+  playing = true;
+  $('tourBtn').textContent = 'إيقاف مؤقت';
+  amb.play().catch(() => {});
+  narr.play().catch(() => {
+    $('tourBtn').textContent = 'ما فيه ملف سرد صوتي بعد';
+    playing = false;
+  });
+});
+narr.addEventListener('ended', () => { $('tourBtn').textContent = 'أعد الجولة الصوتية'; playing = false; amb.pause(); });
+
+// ---------- Mobile bottom sheet ----------
+$('handle').addEventListener('click', () => $('panel').classList.toggle('collapsed'));
+
+loadStory();
+tryDefaultScene();
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "title": "مثال: ركن تراثي",
+  "title_en": "Example: heritage corner",
+  "narration_ar": "هذا ملف مثال. بعد ما تصورون المكان وتبنون المشهد، شغلوا scripts/narrate.py وبيكتب هنا سرد ثقافي حقيقي عن اللي يظهر بالصور.",
+  "narration_en": "This is a sample file. After capturing the place and building the scene, run scripts/narrate.py to write a real cultural narration here.",
+  "highlights": ["الأبواب النجدية", "النقوش الجصية", "أدوات القهوة"],
+  "ambient_prompt": "Soft murmur of visitors in a quiet museum hall, distant traditional oud, light footsteps on stone.",
+  "place": "الرياض",
+  "captured_at": "2026-10-04T12:00+00:00"
+}

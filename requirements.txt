@@ -1,0 +1,4 @@
+# Scripts in /scripts (the Colab notebook installs its own dependencies)
+opencv-python
+anthropic
+gTTS

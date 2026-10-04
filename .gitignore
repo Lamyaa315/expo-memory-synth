@@ -1,0 +1,19 @@
+# Data & outputs (heavy files stay out of git)
+data/*
+!data/.gitkeep
+*.mp4
+*.mov
+results/
+outputs/
+web/*.ply
+web/*.splat
+web/*.ksplat
+web/audio/*.mp3
+!web/audio/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+.ipynb_checkpoints/
