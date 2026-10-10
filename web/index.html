@@ -43,6 +43,7 @@
     transition: transform .35s ease;
   }
   .panel.collapsed { transform: translateY(calc(100% - 4.4rem - env(safe-area-inset-bottom, 0px))); }
+  .panel.spot-mode { max-height: 42vh; }
 
   @media (min-width: 900px) {
     .panel {
@@ -50,6 +51,7 @@
       top: 1.5rem; bottom: auto; width: 380px; max-height: calc(100vh - 3rem);
       border-radius: 14px;
     }
+    .panel.spot-mode { max-height: calc(100vh - 3rem); }
     .panel.collapsed { transform: none; }
     .handle { display: none; }
   }
@@ -78,9 +80,88 @@
   button:focus-visible, label.ghost:focus-within { outline: 3px solid var(--saffron); outline-offset: 2px; }
   #fileInput { position: absolute; opacity: 0; width: 1px; height: 1px; }
 
+  .film-link { display: block; margin: .9rem 0 0; color: var(--teal); font-weight: 600; font-size: .95rem; text-decoration: none; }
+  .film-link:hover { text-decoration: underline; }
+  .film-link:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; border-radius: 4px; }
+
   .hint { font-size: .8rem; color: var(--ink-soft); margin: .9rem 0 0; line-height: 1.6; }
 
-  @media (prefers-reduced-motion: reduce) { .panel { transition: none; } }
+  /* Hotspot markers */
+  .spots { position: fixed; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+  .spot {
+    position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer;
+    width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff;
+    background: var(--teal); color: #fff; font: 600 .9rem var(--font);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .4);
+    display: grid; place-items: center;
+  }
+  .spot::after {
+    content: ""; position: absolute; inset: -6px; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .7); animation: pulse 2s ease-out infinite;
+  }
+  .spot.active { background: var(--saffron); color: var(--ink); }
+  .spot:focus-visible { outline: 3px solid var(--saffron); outline-offset: 3px; }
+  .spot[hidden] { display: none; }
+  @keyframes pulse { from { transform: scale(.8); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+
+  /* Hotspot explanation */
+  button.link { font: inherit; font-size: .9rem; background: none; border: 0; padding: 0; color: var(--teal); cursor: pointer; margin: 0 0 .6rem; }
+  button.link:hover { text-decoration: underline; }
+  button.link:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .spot-title { display: flex; align-items: center; gap: .6rem; }
+  .num {
+    flex: none; display: inline-grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%;
+    background: var(--saffron); color: var(--ink); font-size: .95rem; font-weight: 600;
+  }
+
+  /* Questions */
+  .ask { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid #C9C4B5; }
+  .ask h2 { font-size: 1rem; margin: 0 0 .6rem; }
+  .chat { display: flex; flex-direction: column; gap: .45rem; margin-bottom: .7rem; }
+  .msg { max-width: 88%; padding: .55rem .8rem; border-radius: 14px; line-height: 1.7; font-size: .93rem; white-space: pre-wrap; }
+  .msg.user { align-self: flex-start; background: var(--teal); color: #fff; border-end-start-radius: 4px; }
+  .msg.assistant { align-self: flex-end; background: #F4F2EC; border: 1px solid #DDD8CB; border-end-end-radius: 4px; }
+  .msg.pending { color: var(--ink-soft); }
+  .msg.error { color: #A1442F; }
+  .ask-form { display: flex; gap: .4rem; }
+  .ask-form input {
+    flex: 1 1 auto; min-width: 0; font: inherit; font-size: .95rem; padding: .6rem .75rem; color: var(--ink);
+    background: #F4F2EC; border: 1px solid #C9C4B5; border-radius: 10px;
+  }
+  .ask-form input:focus { outline: 3px solid var(--saffron); outline-offset: 1px; }
+  .ask-form button.primary { flex: none; }
+  .mic { flex: none; padding: .6rem .8rem !important; }
+  .mic.on { background: #A1442F; color: #fff; border-color: #A1442F; }
+
+  /* Editor */
+  #editor h1 { margin-bottom: .3rem; }
+  .ed-help { margin-top: 0; }
+  .ed-note { font-size: .85rem; background: #F4EBD6; border-radius: 8px; padding: .5rem .7rem; line-height: 1.7; }
+  .ed-note .link { margin: 0; font-size: .85rem; }
+  .ed-list { list-style: none; padding: 0; margin: .8rem 0 0; display: grid; gap: .35rem; }
+  .ed-item {
+    width: 100%; display: flex; align-items: center; gap: .6rem; text-align: start; cursor: pointer;
+    font: inherit; font-size: .9rem; color: var(--ink); background: #F4F2EC; border: 1px solid transparent;
+    border-radius: 10px; padding: .45rem .6rem;
+  }
+  .ed-item .num { width: 1.5rem; height: 1.5rem; font-size: .8rem; background: var(--teal); color: #fff; }
+  .ed-item .state { margin-inline-start: auto; font-size: .75rem; color: var(--ink-soft); }
+  .ed-item.active { border-color: var(--saffron); }
+  .ed-item:focus-visible { outline: 3px solid var(--saffron); }
+  .ed-form { margin-top: 1rem; padding-top: .9rem; border-top: 1px solid #C9C4B5; }
+  .ed-form h2 { font-size: 1.05rem; margin: 0 0 .4rem; }
+  .ed-form label { display: block; font-size: .8rem; font-weight: 600; margin: .7rem 0 .25rem; }
+  .ed-form input, .ed-form textarea {
+    width: 100%; font: inherit; font-size: .95rem; padding: .5rem .65rem; color: var(--ink);
+    background: #F4F2EC; border: 1px solid #C9C4B5; border-radius: 8px; resize: vertical;
+  }
+  .ed-form input:focus, .ed-form textarea:focus { outline: 3px solid var(--saffron); outline-offset: 1px; }
+  .ed-form .actions { margin-top: .9rem; }
+  .ed-status { font-size: .85rem; color: var(--teal); min-height: 1.4em; margin: .8rem 0 .4rem; }
+  button.danger { color: #A1442F; border-color: #D9B3A8; }
+  button:disabled { opacity: .45; cursor: default; }
+
+  @media (prefers-reduced-motion: reduce) { .panel { transition: none; } .spot::after { animation: none; } }
 </style>
 <script type="importmap">
 {
@@ -98,44 +179,108 @@
     <p>ما فيه مشهد محمّل. اختر ملف <bdi>.ply</bdi> من جهازك، أو ضعه في مجلد <bdi>web</bdi> باسم <bdi>scene.ply</bdi>.</p>
   </div>
 
+  <!-- Hotspot markers, positioned over the 3D scene by hotspots.js -->
+  <div class="spots" id="spots"></div>
+
   <section class="panel" id="panel">
     <button class="handle" id="handle" aria-label="إظهار أو إخفاء التفاصيل"><span></span></button>
-    <p class="fresh"><i></i><span id="fresh">صوّره زائر في الموقع</span></p>
-    <h1 id="title">جناح تراثي</h1>
-    <p class="narration" id="narration"></p>
-    <ul class="highlights" id="highlights"></ul>
-    <div class="actions">
-      <button class="primary" id="tourBtn">ابدأ الجولة الصوتية</button>
-      <button class="ghost" id="langBtn">English</button>
-      <label class="ghost">افتح مشهد
-        <input type="file" id="fileInput" accept=".ply,.splat,.ksplat">
-      </label>
+
+    <!-- The scene's story -->
+    <div id="storyView">
+      <p class="fresh"><i></i><span id="fresh">صوّره زائر في الموقع</span></p>
+      <h1 id="title">جناح تراثي</h1>
+      <p class="narration" id="narration"></p>
+      <ul class="highlights" id="highlights"></ul>
+      <div class="actions">
+        <button class="primary" id="tourBtn">ابدأ الجولة الصوتية</button>
+        <button class="ghost" id="langBtn">English</button>
+        <label class="ghost">افتح مشهد
+          <input type="file" id="fileInput" accept=".ply,.splat,.ksplat">
+        </label>
+      </div>
+      <a class="film-link" href="film.html">زرت المكان؟ سوّ فيلم من صور رحلتك ←</a>
+      <p class="hint" id="hint">اسحب للدوران، وكبّر بإصبعين أو بعجلة الفأرة.</p>
     </div>
-    <p class="hint">اسحب للدوران، وكبّر بإصبعين أو بعجلة الفأرة.</p>
+
+    <!-- One hotspot's explanation -->
+    <div id="spotView" hidden>
+      <button class="link" id="spotBack">→ المشهد كامل</button>
+      <h1 class="spot-title"><span class="num" id="spotNum">1</span><span id="spotTitle"></span></h1>
+      <p class="narration" id="spotText"></p>
+      <div class="actions">
+        <button class="primary" id="spotListen">▶ استمع للشرح</button>
+        <button class="ghost" id="spotNext">التالي ←</button>
+        <button class="ghost" id="spotLang">English</button>
+      </div>
+
+      <!-- Questions: needs scripts/server.py with an API key -->
+      <div class="ask" id="ask" hidden>
+        <h2 id="askTitle">اسأل عن هذي القطعة</h2>
+        <div class="chat" id="chat" aria-live="polite" hidden></div>
+        <form class="ask-form" id="askForm">
+          <input id="askInput" type="text" maxlength="300" autocomplete="off" aria-labelledby="askTitle">
+          <button type="button" class="ghost mic" id="askMic" hidden>🎙</button>
+          <button type="submit" class="primary" id="askSend">اسأل</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Editor: index.html?edit -->
+    <div id="editor" hidden>
+      <h1>تحرير النقاط</h1>
+      <p class="hint ed-help">اضغط على أي مكان في المشهد عشان تضيف نقطة. اضغط على نقطة موجودة عشان تعدلها.</p>
+      <p class="ed-note" id="draftNote" hidden>تشتغل على مسودة محفوظة بهذا المتصفح. <button class="link" id="edDiscard">ارجع لملف hotspots.json</button></p>
+      <ol class="ed-list" id="edList"></ol>
+      <p class="hint" id="edEmpty">ما فيه نقاط للحين.</p>
+
+      <form class="ed-form" id="edForm" hidden onsubmit="return false">
+        <h2 id="edFormTitle">النقطة</h2>
+        <label for="edTitle">العنوان</label>
+        <input id="edTitle" type="text" maxlength="60" placeholder="مثلاً: نقش الجمل">
+        <label for="edText">الشرح (يتحول لصوت)</label>
+        <textarea id="edText" rows="4" placeholder="جملتين أو ثلاث عن هذا الجزء"></textarea>
+        <label for="edTitleEn">Title (English)</label>
+        <input id="edTitleEn" type="text" maxlength="60" dir="ltr">
+        <label for="edTextEn">Explanation (English)</label>
+        <textarea id="edTextEn" rows="3" dir="ltr"></textarea>
+        <label for="edFacts">معلومات إضافية للأسئلة (ما تنعرض للزائر)</label>
+        <textarea id="edFacts" rows="3" placeholder="أي معلومة موثوقة عن القطعة: من موقع المتحف، أو من الموظفين"></textarea>
+        <div class="actions">
+          <button type="button" class="ghost" id="edView">خذ زاوية الكاميرا الحالية</button>
+          <button type="button" class="ghost" id="edMove">انقل النقطة</button>
+          <button type="button" class="ghost danger" id="edDelete">احذف</button>
+          <button type="button" class="primary" id="edDone">تم</button>
+        </div>
+      </form>
+
+      <p class="ed-status" id="edStatus" role="status"></p>
+      <div class="actions">
+        <button class="primary" id="edDownload">نزّل hotspots.json</button>
+        <button class="ghost" id="edCopy">انسخ</button>
+      </div>
+    </div>
   </section>
 
   <audio id="narrationAudio" src="audio/narration.mp3" preload="auto"></audio>
   <audio id="ambientAudio" src="audio/ambient.mp3" preload="auto" loop></audio>
+  <audio id="spotAudio" preload="none"></audio>
 
 <script type="module">
 import * as GS from '@mkkellogg/gaussian-splats-3d';
-
-// ---- Scene settings: tweak these if the scene appears upside down or far away ----
-const SCENE_URL = 'scene.ply';
-const CAMERA = {
-  cameraUp: [0, -1, 0],              // COLMAP scenes are usually Y-down
-  initialCameraPosition: [0, -1, -4],
-  initialCameraLookAt: [0, 0, 0],
-};
+// Scene settings (camera angle, file name) live in scene-config.js
+import { SCENE_URL, CAMERA } from './scene-config.js';
+import { initHotspots, clearHotspots } from './hotspots.js';
+import { initAsk } from './ask.js';
 
 const $ = (id) => document.getElementById(id);
 let viewer = null;
 let lang = 'ar';
 let story = null;
+const editMode = new URLSearchParams(location.search).has('edit');
 
 // ---------- 3D viewer ----------
 async function loadScene(url, format) {
-  if (viewer) { await viewer.dispose(); viewer = null; $('stage').innerHTML = ''; }
+  if (viewer) { clearHotspots(); await viewer.dispose(); viewer = null; $('stage').innerHTML = ''; }
   viewer = new GS.Viewer({
     ...CAMERA,
     rootElement: $('stage'),
@@ -151,8 +296,11 @@ async function loadScene(url, format) {
 async function tryDefaultScene() {
   try {
     const res = await fetch(SCENE_URL, { method: 'HEAD' });
-    if (res.ok) await loadScene(SCENE_URL);
-  } catch (e) { /* no default scene: keep empty state */ }
+    if (!res.ok) return;
+    await loadScene(SCENE_URL);
+    // Hotspot positions belong to this scene, so they only load with it (not with a file opened by hand)
+    await initHotspots(viewer, { editMode });
+  } catch (e) { console.error(e); }
 }
 
 $('fileInput').addEventListener('change', async (e) => {
@@ -215,7 +363,12 @@ async function loadStory() {
   render();
 }
 
-$('langBtn').addEventListener('click', () => { lang = lang === 'ar' ? 'en' : 'ar'; render(); });
+$('langBtn').addEventListener('click', () => {
+  lang = lang === 'ar' ? 'en' : 'ar';
+  document.documentElement.dataset.lang = lang;
+  render();
+  document.dispatchEvent(new Event('langchange'));
+});
 
 // ---------- Audio tour ----------
 const narr = $('narrationAudio');
@@ -230,6 +383,7 @@ $('tourBtn').addEventListener('click', async () => {
     return;
   }
   playing = true;
+  document.dispatchEvent(new Event('tour:play'));   // stops a hotspot explanation
   $('tourBtn').textContent = 'إيقاف مؤقت';
   amb.play().catch(() => {});
   narr.play().catch(() => {
@@ -237,13 +391,27 @@ $('tourBtn').addEventListener('click', async () => {
     playing = false;
   });
 });
+document.addEventListener('hotspot:play', () => {
+  if (!playing) return;
+  narr.pause(); amb.pause(); playing = false;
+  $('tourBtn').textContent = 'كمّل الجولة الصوتية';
+});
 narr.addEventListener('ended', () => { $('tourBtn').textContent = 'أعد الجولة الصوتية'; playing = false; amb.pause(); });
 
 // ---------- Mobile bottom sheet ----------
 $('handle').addEventListener('click', () => $('panel').classList.toggle('collapsed'));
 
+if (editMode) {
+  $('storyView').hidden = true;
+  $('editor').hidden = false;
+  $('edStatus').textContent = 'جاري تحميل المشهد…';
+}
 loadStory();
-tryDefaultScene();
+initAsk();
+tryDefaultScene().then(() => {
+  if (editMode && !viewer) $('edStatus').textContent = 'التحرير يحتاج web/scene.ply.';
+  else if (editMode) $('edStatus').textContent = '';
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>فيلم رحلتك</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  /* Same tokens as index.html: Najdi night + painted-door teal */
+  :root {
+    --night: #1D2440;
+    --stone: #E6E3DA;
+    --ink: #1D2440;
+    --ink-soft: #545B78;
+    --line: #C9C4B5;
+    --teal: #2F7F86;
+    --saffron: #D9A23A;
+    --danger: #A1442F;
+    --font: "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--night); font-family: var(--font); color: var(--ink); }
+
+  main { max-width: 560px; margin: 0 auto; padding: 1.25rem 16px 3rem; }
+  .back { color: var(--stone); opacity: .8; text-decoration: none; font-size: .9rem; }
+  .back:hover { opacity: 1; text-decoration: underline; }
+
+  .card { background: var(--stone); border-radius: 16px; padding: 1.25rem; margin-top: 1rem; }
+  h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 .4rem; }
+  .lead { margin: 0 0 .9rem; line-height: 1.8; font-weight: 300; }
+  .privacy { display: flex; gap: .5rem; align-items: flex-start; font-size: .85rem; color: var(--ink-soft); margin: 0; line-height: 1.6; }
+  .privacy i { width: 8px; height: 8px; border-radius: 50%; background: var(--saffron); flex: none; margin-top: .45rem; }
+
+  label.field { display: block; font-size: .9rem; font-weight: 600; margin: 1rem 0 .35rem; }
+  input[type="text"] {
+    width: 100%; font: inherit; font-size: 1rem; padding: .65rem .8rem;
+    border: 1px solid var(--line); border-radius: 10px; background: #F4F2EC; color: var(--ink);
+  }
+  input[type="text"]:focus { outline: 3px solid var(--saffron); outline-offset: 1px; }
+
+  .picker {
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+    margin-top: 1.1rem; padding: 1rem; border: 2px dashed var(--line); border-radius: 12px;
+    cursor: pointer; font-weight: 600; color: var(--teal); text-align: center;
+  }
+  .picker:hover { border-color: var(--teal); }
+  .picker:focus-within { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  #photoInput { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .count { font-size: .85rem; color: var(--ink-soft); margin: .5rem 0 0; }
+
+  .photos { list-style: none; margin: .75rem 0 0; padding: 0; display: grid; gap: .6rem; }
+  .photo { display: grid; grid-template-columns: 72px 1fr auto; gap: .6rem; align-items: center;
+           background: #F4F2EC; border-radius: 12px; padding: .5rem; }
+  .photo img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; display: block; }
+  .photo input { font-size: .9rem; padding: .5rem .6rem; }
+  .tools { display: flex; flex-direction: column; gap: .2rem; }
+  .tools button {
+    font: inherit; width: 32px; height: 28px; border: 0; border-radius: 6px; cursor: pointer;
+    background: transparent; color: var(--ink-soft); font-size: .9rem; line-height: 1;
+  }
+  .tools button:hover { background: #E2DED3; color: var(--ink); }
+  .tools button.remove:hover { color: var(--danger); }
+  .tools button:disabled { opacity: .3; cursor: default; background: transparent; }
+  .tools button:focus-visible { outline: 2px solid var(--saffron); }
+
+  .actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1.1rem; }
+  button.primary, button.ghost, a.ghost {
+    font: inherit; font-size: .95rem; border-radius: 10px; padding: .7rem 1.1rem; cursor: pointer; text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  button.primary { background: var(--teal); color: #fff; border: 0; font-weight: 600; flex: 1 1 auto; }
+  button.primary:disabled { opacity: .45; cursor: default; }
+  button.ghost, a.ghost { background: transparent; color: var(--ink); border: 1px solid #B9B5A8; }
+  button.ghost:disabled { opacity: .45; cursor: default; }
+  button:focus-visible, a.ghost:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+
+  /* Player */
+  .stage { display: flex; justify-content: center; margin-top: 1rem; }
+  #film {
+    display: block; background: #000; border-radius: 14px;
+    height: min(72vh, 900px); max-width: 100%; aspect-ratio: 9 / 16; object-fit: contain;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+  }
+  .status { font-size: .9rem; color: var(--ink-soft); margin: .9rem 0 0; line-height: 1.6; min-height: 1.6em; }
+  .status.busy::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+                         background: var(--danger); margin-inline-end: .45rem; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .progress { height: 4px; background: #D6D2C6; border-radius: 2px; overflow: hidden; margin-top: .6rem; }
+  .progress span { display: block; height: 100%; width: 0; background: var(--teal); }
+
+  [hidden] { display: none !important; }
+
+  /* Offscreen host for the 3D viewer: frames are copied into the film canvas */
+  #sceneHost { position: fixed; top: 0; left: 0; width: 720px; height: 1280px; opacity: 0; pointer-events: none; z-index: -1; }
+
+  @media (prefers-reduced-motion: reduce) { .status.busy::before { animation: none; } }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">→ رجوع للمشهد</a>
+
+  <!-- Step 1: pick photos -->
+  <section class="card" id="setup">
+    <h1>فيلم رحلتك</h1>
+    <p class="lead">اختر صور من زيارتك، ونسوي لك فيلم قصير يبدأ بجولة داخل المكان. احفظه عندك أو أرسله لأهلك وأصحابك اللي ما قدروا يجون.</p>
+    <p class="privacy"><i></i><span>صورك تبقى في جهازك. الفيلم ينصنع داخل المتصفح، وما ترتفع أي صورة لأي مكان.</span></p>
+
+    <label class="field" for="nameInput">اسمك</label>
+    <input type="text" id="nameInput" placeholder="مثلاً: لمياء" maxlength="30" autocomplete="given-name">
+
+    <label class="field" for="placeInput">المكان</label>
+    <input type="text" id="placeInput" placeholder="مثلاً: المتحف الوطني، الرياض" maxlength="60">
+
+    <label class="picker">
+      <span>+ اختر صور الرحلة</span>
+      <input type="file" id="photoInput" accept="image/*" multiple>
+    </label>
+    <p class="count" id="count">حتى 12 صورة. تقدر تكتب سطر قصير عن كل صورة.</p>
+
+    <ul class="photos" id="photos"></ul>
+
+    <div class="actions">
+      <button class="primary" id="makeBtn" disabled>سوّ الفيلم</button>
+    </div>
+  </section>
+
+  <!-- Step 2: watch and save -->
+  <section class="card" id="player" hidden>
+    <h1 id="filmTitle">رحلتك</h1>
+    <div class="stage"><canvas id="film" width="720" height="1280" aria-label="معاينة فيلم الرحلة"></canvas></div>
+    <div class="progress"><span id="bar"></span></div>
+    <p class="status" id="status"></p>
+    <div class="actions">
+      <button class="primary" id="playBtn">▶ شغّل الفيلم</button>
+      <button class="ghost" id="saveBtn">احفظ كفيديو</button>
+      <button class="ghost" id="editBtn">تعديل الصور</button>
+    </div>
+    <div class="actions" id="result" hidden>
+      <a class="ghost" id="downloadLink" download>⬇ نزّل الفيديو</a>
+      <button class="ghost" id="shareBtn" hidden>شارك</button>
+    </div>
+  </section>
+</main>
+
+<div id="sceneHost" aria-hidden="true"></div>
+<audio id="ambientAudio" src="audio/ambient.mp3" preload="auto" loop></audio>
+
+<script type="module" src="film.js"></script>
+</body>
+</html>
