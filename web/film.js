@@ -4,7 +4,8 @@
 // Everything runs in the browser: photos never leave the device.
 import * as THREE from 'three';
 import * as GS from '@mkkellogg/gaussian-splats-3d';
-import { SCENE_URL, CAMERA } from './scene-config.js';
+import { findScene, CAMERA } from './scene-config.js';
+import { makeFloorScene } from './stage.js';
 
 // ---------- Film settings ----------
 const W = 720, H = 1280;                                    // vertical 9:16, fits phones and stories
@@ -41,17 +42,18 @@ const fontsReady = Promise.all([
 // ---------- 3D scene (optional) ----------
 const sceneReady = (async () => {
   try {
-    const res = await fetch(SCENE_URL, { method: 'HEAD' });
-    if (!res.ok) return null;
+    const url = await findScene();
+    if (!url) return null;
     const v = new GS.Viewer({
       ...CAMERA,
       rootElement: $('sceneHost'),
+      threeScene: makeFloorScene(),
       selfDrivenMode: false,           // we drive the camera and copy each frame into the film
       useBuiltInControls: false,
       ignoreDevicePixelRatio: true,    // render at exactly 720x1280
       sharedMemoryForWorkers: false,
     });
-    await v.addSplatScene(SCENE_URL, { showLoadingUI: false, splatAlphaRemovalThreshold: 5 });
+    await v.addSplatScene(url, { showLoadingUI: false, splatAlphaRemovalThreshold: 5 });
     return v;
   } catch (e) {
     console.warn('Scene not available for the film, using a title card instead.', e);
@@ -62,19 +64,56 @@ const sceneReady = (async () => {
 const target = new THREE.Vector3(...CAMERA.initialCameraLookAt);
 const up = new THREE.Vector3(...CAMERA.cameraUp).normalize();
 const baseOffset = new THREE.Vector3(...CAMERA.initialCameraPosition).sub(target);
+// Orbit around the starting angle saved in the editor, when there is one
+fetch('hotspots.json', { cache: 'no-cache' }).then((r) => r.json()).then(({ start }) => {
+  if (!start) return;
+  target.fromArray(start.target);
+  baseOffset.fromArray(start.position).sub(target);
+}).catch(() => {});
 const offset = new THREE.Vector3();
 
-function drawScene(t) {
-  // Slow orbit around the look-at point while dollying in
-  const e = ease(t);
-  offset.copy(baseOffset).applyAxisAngle(up, lerp(-0.45, 0.45, e)).multiplyScalar(lerp(1.15, 0.85, e));
-  const cam = viewer.camera;
-  cam.position.copy(target).add(offset);
+// With a corridor tour (tour.json), the opening walks the first stops of the filmed path instead of
+// orbiting: the scan is only sharp near where it was filmed.
+let walk = null;
+fetch('tour.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((tour) => {
+  if (!tour?.stops?.length || tour.stops.length < 2) return;
+  walk = { fov: tour.fov, stops: tour.stops.slice(0, 4).map((s) => ({
+    position: new THREE.Vector3(...s.position), target: new THREE.Vector3(...s.target) })) };
+}).catch(() => {});
+const walkTarget = new THREE.Vector3();
+
+function placeOnWalk(cam, t) {
+  const segs = walk.stops.length - 1;
+  const x = ease(t) * segs;
+  const i = Math.min(segs - 1, Math.floor(x));
+  const k = x - i;
+  cam.position.lerpVectors(walk.stops[i].position, walk.stops[i + 1].position, k);
+  walkTarget.lerpVectors(walk.stops[i].target, walk.stops[i + 1].target, k);
   cam.up.copy(up);
-  cam.lookAt(target);
+  cam.lookAt(walkTarget);
+  if (walk.fov && cam.fov !== walk.fov + 10) { cam.fov = walk.fov + 10; cam.updateProjectionMatrix(); }
+}
+
+function drawScene(t) {
+  const cam = viewer.camera;
+  if (walk) {
+    placeOnWalk(cam, t);
+  } else {
+    // Slow orbit around the look-at point while dollying in
+    const e = ease(t);
+    offset.copy(baseOffset).applyAxisAngle(up, lerp(-0.45, 0.45, e)).multiplyScalar(lerp(1.15, 0.85, e));
+    cam.position.copy(target).add(offset);
+    cam.up.copy(up);
+    cam.lookAt(target);
+  }
   viewer.update();
   viewer.render();
-  ctx.fillStyle = NIGHT;
+  // Same warm museum backdrop as the site, behind the transparent 3D frame
+  const bg = ctx.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, H * 0.75);
+  bg.addColorStop(0, '#3d352b');
+  bg.addColorStop(0.55, '#221d18');
+  bg.addColorStop(1, '#110e0c');
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
   ctx.drawImage(viewer.renderer.domElement, 0, 0, W, H);
 }

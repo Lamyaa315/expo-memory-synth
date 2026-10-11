@@ -1,6 +1,8 @@
 // "Ask about this piece": the visitor types or speaks a question about the open hotspot,
-// Claude answers through scripts/server.py, and the answer is read aloud.
+// a model answers through scripts/server.py (Gemini, Claude or a local one), and the answer is read aloud.
 // Hidden when the page runs without that server (python -m http.server, GitHub Pages).
+
+import * as voice from './voice.js';
 
 const $ = (id) => document.getElementById(id);
 const lang = () => document.documentElement.dataset.lang || 'ar';
@@ -56,15 +58,8 @@ function renderChat() {
 }
 
 function speak(text) {
-  if (!('speechSynthesis' in window)) return;
   document.dispatchEvent(new Event('hotspot:play'));   // pauses the scene's audio tour
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = isArabic(text) ? 'ar-SA' : 'en-US';
-  const voice = speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(u.lang.slice(0, 2)));
-  if (voice) u.voice = voice;
-  u.rate = 0.95;
-  speechSynthesis.speak(u);
+  voice.speak(text);
 }
 
 async function send(question) {
@@ -123,7 +118,7 @@ function startListening() {
     if (e.results[e.results.length - 1].isFinal) send(text);
   };
   r.onend = r.onerror = () => { listening = null; $('askMic').classList.remove('on'); };
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  voice.stop();
   listening = r;
   $('askMic').classList.add('on');
   r.start();

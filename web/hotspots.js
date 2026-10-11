@@ -3,15 +3,14 @@
 // Open index.html?edit to place hotspots by clicking the scene, then download hotspots.json into web/.
 import * as THREE from 'three';
 import { askFor } from './ask.js';
+import * as voice from './voice.js';
+import { flyTo as glide, setHome, getHome } from './stage.js';
 
 const DATA_URL = 'hotspots.json';
 const DRAFT_KEY = 'ems-hotspots-draft';
-const FLY_SECONDS = 1.2;
 const CLICK_PX = 5, CLICK_MS = 500;
 
 const $ = (id) => document.getElementById(id);
-const ease = (t) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, t)));
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let viewer = null;
 let data = { hotspots: [] };
@@ -19,25 +18,34 @@ let markers = new Map();     // id -> button
 let active = null;           // selected hotspot
 let editMode = false;
 let moving = false;          // editor: next scene click moves the active hotspot
-let home = null;             // { position, target } of the starting view
-let fly = null;
 let originalRender = null;
+let captureRequest = null;   // resolves with a JPEG of the next rendered frame
+let labelImage = null;       // editor: photo of the museum label, as a data URL
 let speaking = false;
 
 const lang = () => document.documentElement.dataset.lang || 'ar';
-const spotAudio = () => $('spotAudio');
 const isArabic = (text) => /[؀-ۿ]/.test(text);
 
 // ---------- Public API ----------
 export async function initHotspots(v, opts = {}) {
   viewer = v;
   editMode = !!opts.editMode;
-  home = { position: v.camera.position.clone(), target: v.controls.target.clone() };
-
   data = await loadData();
+  // A starting angle saved from the editor wins over scene-config.js
+  if (data.start) {
+    v.camera.position.fromArray(data.start.position);
+    v.controls.target.fromArray(data.start.target);
+    v.camera.lookAt(v.controls.target);
+  }
+  setHome({ position: v.camera.position, target: v.controls.target });
   // Reposition markers whenever the viewer draws a new frame
   originalRender = v.render;
-  v.render = function () { originalRender.call(this); placeMarkers(); };
+  v.render = function () {
+    originalRender.call(this);
+    placeMarkers();
+    // The WebGL frame can only be read right after it is drawn
+    if (captureRequest) { const done = captureRequest; captureRequest = null; done(snapshot(this.renderer.domElement)); }
+  };
   window.addEventListener('resize', placeMarkers);
 
   buildMarkers();
@@ -55,7 +63,7 @@ export function clearHotspots() {
   $('spots').innerHTML = '';
   markers.clear();
   showStory();
-  viewer = null; active = null; fly = null;
+  viewer = null; active = null;
 }
 
 // ---------- Data ----------
@@ -68,7 +76,7 @@ async function loadData() {
     const res = await fetch(DATA_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error(res.status);
     const json = await res.json();
-    return { hotspots: Array.isArray(json.hotspots) ? json.hotspots : [] };
+    return { start: json.start, hotspots: Array.isArray(json.hotspots) ? json.hotspots : [] };
   } catch {
     return { hotspots: [] };
   }
@@ -96,7 +104,8 @@ function exportJson() {
     if (h.view) out.view = { position: round(h.view.position), target: round(h.view.target) };
     return out;
   });
-  return JSON.stringify({ hotspots }, null, 2) + '\n';
+  const start = data.start && { position: round(data.start.position), target: round(data.start.target) };
+  return JSON.stringify(start ? { start, hotspots } : { hotspots }, null, 2) + '\n';
 }
 
 // ---------- Markers ----------
@@ -154,24 +163,7 @@ function viewFor(h) {
 }
 
 function flyTo(view) {
-  if (!viewer) return;
-  viewer.transitioningCameraTarget = false;   // cancel the viewer's own click-to-focus animation
-  const cam = viewer.camera, ctl = viewer.controls;
-  if (reduceMotion) {
-    cam.position.copy(view.position); ctl.target.copy(view.target); cam.lookAt(ctl.target);
-    viewer.forceRenderNextFrame();
-    return;
-  }
-  fly = { start: performance.now(), p0: cam.position.clone(), q0: ctl.target.clone(), p1: view.position, q1: view.target };
-  const step = (now) => {
-    if (!fly || !viewer) return;
-    const k = ease((now - fly.start) / 1000 / FLY_SECONDS);
-    cam.position.lerpVectors(fly.p0, fly.p1, k);
-    ctl.target.lerpVectors(fly.q0, fly.q1, k);
-    cam.lookAt(ctl.target);
-    if (k < 1) requestAnimationFrame(step); else fly = null;
-  };
-  requestAnimationFrame(step);
+  if (viewer) glide(viewer, view);
 }
 
 // ---------- Visitor view ----------
@@ -186,7 +178,12 @@ function select(h, { play = false } = {}) {
   flyTo(viewFor(h));
   $('panel').classList.remove('collapsed');
   $('panel').classList.toggle('spot-mode', !editMode);   // shorter sheet so the point stays in view
-  if (editMode) { renderEditor(); return; }
+  if (editMode) {
+    labelImage = null;               // a label photo belongs to one piece
+    $('edLabelName').textContent = '';
+    renderEditor();
+    return;
+  }
   renderSpot();
   askFor(h);
   $('storyView').hidden = true;
@@ -214,14 +211,16 @@ function showStory() {
   if ($('storyView') && !editMode) $('storyView').hidden = false;
 }
 
-function back() {
+// Close the piece's explanation; fly back to the start (or the current tour stop) unless told not to
+function back({ fly = true } = {}) {
   stopAudio();
   active = null;
   askFor(null);
   markActive();
   showStory();
   $('panel').classList.remove('spot-mode');
-  if (home) flyTo({ position: home.position.clone(), target: home.target.clone() });
+  const home = getHome();
+  if (fly && home) flyTo(home);
 }
 
 function next() {
@@ -238,7 +237,7 @@ function updateHint() {
     : 'اضغط على النقاط المرقمة عشان تسمع شرح كل قطعة. اسحب للدوران، وكبّر بإصبعين أو بعجلة الفأرة.';
 }
 
-// ---------- Audio: recorded file if there is one, else the device's text-to-speech ----------
+// ---------- Audio: recorded file if there is one, else a natural voice (see voice.js) ----------
 function setListenLabel() {
   const en = lang() === 'en';
   $('spotListen').textContent = speaking ? (en ? '■ Stop' : '■ إيقاف') : (en ? '▶ Listen' : '▶ استمع للشرح');
@@ -247,35 +246,17 @@ function setListenLabel() {
 function playAudio() {
   if (!active) return;
   document.dispatchEvent(new Event('hotspot:play'));   // pauses the scene's audio tour
+  const text = spotText(active);
   const src = lang() === 'en' && active.text_en ? active.audio_en : active.audio_ar;
-  const a = spotAudio();
+  const done = () => { speaking = false; setListenLabel(); };
   speaking = true;
   setListenLabel();
-  if (src) {
-    a.src = src;
-    a.play().catch(() => speak());
-  } else {
-    speak();
-  }
-}
-
-function speak() {
-  const text = spotText(active);
-  if (!text || !('speechSynthesis' in window)) { speaking = false; setListenLabel(); return; }
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = isArabic(text) ? 'ar-SA' : 'en-US';
-  const voice = speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(u.lang.slice(0, 2)));
-  if (voice) u.voice = voice;
-  u.rate = 0.95;
-  u.onend = u.onerror = () => { speaking = false; setListenLabel(); };
-  speechSynthesis.speak(u);
+  if (src) voice.playFile(src, text, { onend: done });
+  else voice.speak(text, { onend: done });
 }
 
 function stopAudio() {
-  const a = spotAudio();
-  if (a) { a.pause(); a.removeAttribute('src'); a.load(); }
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  voice.stop();
   speaking = false;
   if ($('spotListen')) setListenLabel();
 }
@@ -308,6 +289,13 @@ function setupEditor() {
       renderList();
     });
   }
+  $('edStart').addEventListener('click', () => {
+    data.start = currentView();
+    setHome({ position: viewer.camera.position, target: viewer.controls.target });
+    saveDraft();
+    renderList();
+    setEdStatus('حفظت هذي الزاوية كبداية للمشهد. نزّل hotspots.json عشان تثبت.');
+  });
   $('edView').addEventListener('click', () => { if (active) { active.view = currentView(); saveDraft(); setEdStatus('حفظت زاوية الكاميرا الحالية لهذي النقطة.'); } });
   $('edMove').addEventListener('click', () => { moving = !!active; setEdStatus(moving ? 'اضغط على المكان الجديد في المشهد.' : ''); });
   $('edDelete').addEventListener('click', () => {
@@ -337,7 +325,100 @@ function setupEditor() {
     buildMarkers(); renderEditor();
   });
 
+  setupAutoDescribe();
   renderEditor();
+}
+
+// ---------- Editor: the model looks at the piece and writes the narration ----------
+function snapshot(canvas, max = 1024) {
+  const s = Math.min(1, max / Math.max(canvas.width, canvas.height));
+  const out = document.createElement('canvas');
+  out.width = Math.round(canvas.width * s);
+  out.height = Math.round(canvas.height * s);
+  const g = out.getContext('2d');
+  g.fillStyle = '#1D2440';               // the scene's background, so empty areas aren't black
+  g.fillRect(0, 0, out.width, out.height);
+  g.drawImage(canvas, 0, 0, out.width, out.height);
+  return out.toDataURL('image/jpeg', 0.85);
+}
+
+function captureView() {
+  return new Promise((resolve, reject) => {
+    captureRequest = resolve;
+    viewer.forceRenderNextFrame();
+    setTimeout(() => { if (captureRequest === resolve) { captureRequest = null; reject(new Error('no frame')); } }, 3000);
+  });
+}
+
+function readImage(file, max = 1600) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      const s = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(im.naturalWidth * s);
+      c.height = Math.round(im.naturalHeight * s);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.88));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable image')); };
+    im.src = url;
+  });
+}
+
+async function setupAutoDescribe() {
+  $('edAuto').hidden = false;
+  let available = false;
+  try { available = (await (await fetch('/api/health', { cache: 'no-store' })).json()).describe === true; } catch { /* static server */ }
+  if (!available) {
+    $('edWrite').disabled = true;
+    $('edWrite').title = 'يحتاج scripts/server.py مع مفتاح موديل بملف .env';
+  }
+
+  $('edLabel').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      labelImage = await readImage(file);
+      $('edLabelName').textContent = file.name;
+    } catch {
+      labelImage = null;
+      $('edLabelName').textContent = 'ما قدرت أفتح الصورة. جرّب JPG أو PNG.';
+    }
+  });
+
+  $('edWrite').addEventListener('click', async () => {
+    if (!active) return;
+    const spot = active;
+    if ((spot.text_ar || '').trim() && !confirm('فيه شرح مكتوب. تبي الموديل يكتب شرح جديد بداله؟')) return;
+    $('edWrite').disabled = true;
+    setEdStatus('الموديل يشوف القطعة ويكتب الشرح… (ممكن ياخذ نص دقيقة)');
+    try {
+      const image = await captureView();
+      const res = await fetch('/api/describe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: spot.id, image, label_image: labelImage, notes: spot.facts || '' }),
+      });
+      if (!res.ok) throw new Error(res.status);
+      const r = await res.json();
+      if (!r.text_ar) throw new Error('empty');
+      for (const k of ['title', 'title_en', 'text_ar', 'text_en']) if (r[k]) spot[k] = r[k];
+      if (r.label_text && !(spot.facts || '').trim()) spot.facts = r.label_text;   // what it read on the label
+      delete spot.audio_ar; delete spot.audio_en;
+      saveDraft();
+      if (active === spot) renderEditor();
+      renderList();
+      setEdStatus('كتب الشرح ✓ عدّله إذا تبي، وبعدين نزّل hotspots.json. وحفظت صورة القطعة عشان يقدر يجاوب أسئلة الزوار عنها.');
+    } catch {
+      setEdStatus('ما قدر الموديل يكتب الحين. جرّب بعد شوي، أو شيك على الترمنال.');
+    } finally {
+      $('edWrite').disabled = !available;
+    }
+  });
 }
 
 const hitDims = new THREE.Vector2();
@@ -364,7 +445,9 @@ function onSceneClick(e) {
     const view = { position: position.toArray(), target: point };
     active = { id: `h${n}`, position: point, view, title: '', title_en: '', text_ar: '', text_en: '' };
     data.hotspots.push(active);
-    setEdStatus('');
+    labelImage = null;
+    $('edLabelName').textContent = '';
+    setEdStatus('قرّب على القطعة واضغط ✨ عشان يكتب الشرح، أو اكتبه بنفسك.');
   }
   saveDraft();
   buildMarkers();
@@ -394,7 +477,7 @@ function renderList() {
     list.appendChild(li);
   });
   $('edEmpty').hidden = data.hotspots.length > 0;
-  $('edDownload').disabled = $('edCopy').disabled = data.hotspots.length === 0;
+  $('edDownload').disabled = $('edCopy').disabled = data.hotspots.length === 0 && !data.start;
 }
 
 function renderEditor() {
@@ -413,12 +496,11 @@ $('spotBack')?.addEventListener('click', back);
 $('spotNext')?.addEventListener('click', next);
 $('spotListen')?.addEventListener('click', () => (speaking ? stopAudio() : playAudio()));
 $('spotLang')?.addEventListener('click', () => $('langBtn').click());
-spotAudio()?.addEventListener('ended', () => { speaking = false; setListenLabel(); });
 document.addEventListener('langchange', () => {
   if (active && !editMode) { stopAudio(); renderSpot(); }
   if (!editMode) updateHint();
 });
 document.addEventListener('tour:play', stopAudio);
+// Walking to another stop of the corridor tour closes the open piece
+document.addEventListener('tour:move', () => { if (active && !editMode) back({ fly: false }); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && active && !editMode) back(); });
-// Chrome loads speech voices lazily
-if ('speechSynthesis' in window) speechSynthesis.getVoices();

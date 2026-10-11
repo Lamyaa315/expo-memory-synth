@@ -1,5 +1,7 @@
 """
-Turn the Arabic narration into speech (gTTS, free) for the web viewer.
+Turn the narration into speech for the web viewer, with the same voice as the site (see tts.py):
+Gemini's natural voices when GEMINI_API_KEY is set (in .env), else edge-tts, else gTTS.
+Pick another Gemini voice with GEMINI_VOICE in .env (e.g. Charon for a male voice).
 Ambient sound: generate it from narration.json["ambient_prompt"] with any
 text-to-audio tool (e.g. Stable Audio), or record 30 s of the real room,
 and save it as web/audio/ambient.mp3.
@@ -12,7 +14,23 @@ import argparse
 import json
 from pathlib import Path
 
-from gtts import gTTS
+import tts
+from server import load_env
+
+
+def say(text, lang, path):
+    """Write the audio for text next to path (the extension follows the engine). Returns the file written."""
+    try:
+        audio, _, ext = tts.synthesize(text)
+        out = Path(path).with_suffix(ext)
+        out.write_bytes(audio)
+        return out
+    except Exception as e:
+        print(f"  natural voice failed ({e}), using gTTS")
+    from gtts import gTTS
+    out = Path(path).with_suffix(".mp3")
+    gTTS(text=text, lang=lang).save(str(out))
+    return out
 
 
 def scene_narration(args):
@@ -21,7 +39,7 @@ def scene_narration(args):
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    gTTS(text=text, lang=args.lang).save(str(out))
+    out = say(text, args.lang, out)
     print(f"Saved narration audio to {out}")
 
     ambient = out.parent / "ambient.mp3"
@@ -45,10 +63,10 @@ def hotspot_audio(args):
             if not text:
                 h.pop(field, None)
                 continue
-            rel = f"audio/hotspots/{h['id']}_{lang}.mp3"
-            if h.get(field) == rel and (web / rel).exists() and not args.force:
-                continue  # already made for this text
-            gTTS(text=text, lang=lang).save(str(web / rel))
+            if h.get(field) and (web / h[field]).exists() and not args.force:
+                continue  # already made for this text (editing the text in ?edit clears it)
+            written = say(text, lang, web / "audio" / "hotspots" / f"{h['id']}_{lang}")
+            rel = written.relative_to(web).as_posix()
             h[field] = rel
             made += 1
             print(f"  {h['id']} ({lang}) -> {rel}")
@@ -66,6 +84,7 @@ def main():
     p.add_argument("--hotspots-file", default="web/hotspots.json")
     p.add_argument("--force", action="store_true", help="Remake hotspot clips that already exist")
     args = p.parse_args()
+    load_env()
 
     if args.hotspots:
         hotspot_audio(args)

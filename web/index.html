@@ -22,7 +22,15 @@
   html, body { margin: 0; height: 100%; background: var(--night); font-family: var(--font); color: var(--ink); }
   body { overflow: hidden; }
 
-  #stage { position: fixed; inset: 0; }
+  /* Warm, dim backdrop like museum lighting (the 3D canvas is transparent), darker towards the edges */
+  #stage {
+    position: fixed; inset: 0;
+    background: radial-gradient(120% 95% at 50% 38%, #3d352b 0%, #221d18 55%, #110e0c 100%);
+  }
+  #stage::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(85% 75% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, .5) 100%);
+  }
   #stage canvas { display: block; touch-action: none; }
 
   .empty {
@@ -85,6 +93,31 @@
   .film-link:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; border-radius: 4px; }
 
   .hint { font-size: .8rem; color: var(--ink-soft); margin: .9rem 0 0; line-height: 1.6; }
+
+  /* Corridor tour bar */
+  .tour {
+    position: fixed; z-index: 9; left: 50%; bottom: 1.5rem; transform: translateX(-50%);
+    display: flex; align-items: center; gap: .35rem; padding: .4rem;
+    background: rgba(20, 17, 14, .72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(230, 227, 218, .18); border-radius: 999px; color: var(--stone);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .35); max-width: calc(100vw - 32px);
+  }
+  .tour[hidden] { display: none; }
+  .tour button {
+    font: inherit; font-size: .9rem; color: var(--stone); background: rgba(230, 227, 218, .1);
+    border: 0; border-radius: 999px; padding: .55rem .9rem; cursor: pointer; white-space: nowrap;
+  }
+  .tour button:hover:not(:disabled) { background: rgba(230, 227, 218, .2); }
+  .tour button:disabled { opacity: .35; cursor: default; }
+  .tour button:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .tour .tour-auto { background: var(--teal); color: #fff; font-weight: 600; }
+  .tour .tour-auto[aria-pressed="true"] { background: var(--saffron); color: var(--ink); }
+  .tour-count { font-size: .85rem; padding: 0 .4rem; white-space: nowrap; opacity: .9; }
+  @media (max-width: 899px) {
+    /* The bottom sheet is at the bottom on phones */
+    .tour { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; }
+    .tour button { padding: .5rem .7rem; font-size: .85rem; }
+  }
 
   /* Hotspot markers */
   .spots { position: fixed; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
@@ -157,6 +190,13 @@
   }
   .ed-form input:focus, .ed-form textarea:focus { outline: 3px solid var(--saffron); outline-offset: 1px; }
   .ed-form .actions { margin-top: .9rem; }
+  .ed-auto { background: #F4EBD6; border-radius: 10px; padding: .6rem .8rem .8rem; margin-top: .5rem; }
+  .ed-auto .hint { margin: 0 0 .2rem; }
+  .ed-file { display: inline-flex; margin-top: .7rem; font-size: .85rem; padding: .5rem .8rem; border-radius: 8px; cursor: pointer; }
+  .ed-file input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .ed-file:focus-within { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .ed-file-name { font-size: .8rem; color: var(--ink-soft); margin-inline-start: .5rem; }
+  .ed-write { display: block; width: 100%; margin-top: .7rem; }
   .ed-status { font-size: .85rem; color: var(--teal); min-height: 1.4em; margin: .8rem 0 .4rem; }
   button.danger { color: #A1442F; border-color: #D9B3A8; }
   button:disabled { opacity: .45; cursor: default; }
@@ -178,6 +218,14 @@
   <div class="empty" id="empty">
     <p>ما فيه مشهد محمّل. اختر ملف <bdi>.ply</bdi> من جهازك، أو ضعه في مجلد <bdi>web</bdi> باسم <bdi>scene.ply</bdi>.</p>
   </div>
+
+  <!-- Walk the corridor: stops along the filmed path (tour.js, web/tour.json) -->
+  <nav class="tour" id="tourBar" aria-label="جولة في الجناح" hidden>
+    <button type="button" id="tourPrev">→ السابق</button>
+    <span class="tour-count" id="tourCount" aria-live="polite"></span>
+    <button type="button" id="tourNext">التالي ←</button>
+    <button type="button" class="tour-auto" id="tourAuto" aria-pressed="false">▶ جولة تلقائية</button>
+  </nav>
 
   <!-- Hotspot markers, positioned over the 3D scene by hotspots.js -->
   <div class="spots" id="spots"></div>
@@ -235,6 +283,19 @@
 
       <form class="ed-form" id="edForm" hidden onsubmit="return false">
         <h2 id="edFormTitle">النقطة</h2>
+
+        <!-- Automatic description: the model looks at the current view (and the museum's text, if any) -->
+        <div class="ed-auto" id="edAuto" hidden>
+          <p class="hint">قرّب الكاميرا على القطعة لين تبان واضحة، وبعدين اضغط الزر. الموديل يشوف القطعة ويكتب شرح سردي.</p>
+          <label for="edFacts">شرح من المتحف (اختياري): الصق أي معلومة لقيتها</label>
+          <textarea id="edFacts" rows="3" placeholder="مثلاً: نقوش صخرية من منطقة حائل، الألف الأول قبل الميلاد"></textarea>
+          <label class="ghost ed-file">📷 صورة لوحة المتحف (اختياري)
+            <input type="file" id="edLabel" accept="image/*">
+          </label>
+          <span class="ed-file-name" id="edLabelName"></span>
+          <button type="button" class="primary ed-write" id="edWrite">✨ اكتب الشرح من المشهد</button>
+        </div>
+
         <label for="edTitle">العنوان</label>
         <input id="edTitle" type="text" maxlength="60" placeholder="مثلاً: نقش الجمل">
         <label for="edText">الشرح (يتحول لصوت)</label>
@@ -243,8 +304,6 @@
         <input id="edTitleEn" type="text" maxlength="60" dir="ltr">
         <label for="edTextEn">Explanation (English)</label>
         <textarea id="edTextEn" rows="3" dir="ltr"></textarea>
-        <label for="edFacts">معلومات إضافية للأسئلة (ما تنعرض للزائر)</label>
-        <textarea id="edFacts" rows="3" placeholder="أي معلومة موثوقة عن القطعة: من موقع المتحف، أو من الموظفين"></textarea>
         <div class="actions">
           <button type="button" class="ghost" id="edView">خذ زاوية الكاميرا الحالية</button>
           <button type="button" class="ghost" id="edMove">انقل النقطة</button>
@@ -255,6 +314,9 @@
 
       <p class="ed-status" id="edStatus" role="status"></p>
       <div class="actions">
+        <button class="ghost" id="edStart">خذ الزاوية الحالية كبداية للمشهد</button>
+      </div>
+      <div class="actions">
         <button class="primary" id="edDownload">نزّل hotspots.json</button>
         <button class="ghost" id="edCopy">انسخ</button>
       </div>
@@ -263,27 +325,31 @@
 
   <audio id="narrationAudio" src="audio/narration.mp3" preload="auto"></audio>
   <audio id="ambientAudio" src="audio/ambient.mp3" preload="auto" loop></audio>
-  <audio id="spotAudio" preload="none"></audio>
 
 <script type="module">
 import * as GS from '@mkkellogg/gaussian-splats-3d';
 // Scene settings (camera angle, file name) live in scene-config.js
-import { SCENE_URL, CAMERA } from './scene-config.js';
+import { findScene, CAMERA } from './scene-config.js';
 import { initHotspots, clearHotspots } from './hotspots.js';
 import { initAsk } from './ask.js';
+import { initVoice } from './voice.js';
+import { makeFloorScene, enableLimits } from './stage.js';
+import { initTour } from './tour.js';
 
 const $ = (id) => document.getElementById(id);
 let viewer = null;
 let lang = 'ar';
 let story = null;
+let URL_DEFAULT = null;
 const editMode = new URLSearchParams(location.search).has('edit');
 
 // ---------- 3D viewer ----------
 async function loadScene(url, format) {
-  if (viewer) { clearHotspots(); await viewer.dispose(); viewer = null; $('stage').innerHTML = ''; }
+  if (viewer) { clearHotspots(); $('tourBar').hidden = true; await viewer.dispose(); viewer = null; $('stage').innerHTML = ''; }
   viewer = new GS.Viewer({
     ...CAMERA,
     rootElement: $('stage'),
+    threeScene: url === URL_DEFAULT ? makeFloorScene() : undefined,   // the floor fits this scene only
     sharedMemoryForWorkers: false,   // works on plain static hosting (GitHub Pages)
   });
   const opts = { showLoadingUI: true, splatAlphaRemovalThreshold: 5 };
@@ -295,11 +361,14 @@ async function loadScene(url, format) {
 
 async function tryDefaultScene() {
   try {
-    const res = await fetch(SCENE_URL, { method: 'HEAD' });
-    if (!res.ok) return;
-    await loadScene(SCENE_URL);
-    // Hotspot positions belong to this scene, so they only load with it (not with a file opened by hand)
-    await initHotspots(viewer, { editMode });
+    const url = await findScene();
+    if (!url) return;
+    URL_DEFAULT = url;
+    await loadScene(url);
+    // The tour, hotspots and limits belong to this scene, so they only load with it (not with a file opened by hand)
+    await initTour(viewer);                  // starts at the first stop of the filmed path, if there is one
+    await initHotspots(viewer, { editMode }); // a starting angle saved in the editor wins
+    if (!editMode) enableLimits(viewer);      // the editor can go anywhere
   } catch (e) { console.error(e); }
 }
 
@@ -406,8 +475,15 @@ if (editMode) {
   $('editor').hidden = false;
   $('edStatus').textContent = 'جاري تحميل المشهد…';
 }
+// The 3D viewer moves the camera with W A S D (and reacts to a few other letters) anywhere on the page.
+// Keep typed keys inside the text boxes so every letter gets typed.
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest?.('input, textarea')) e.stopPropagation();
+});
+
 loadStory();
 initAsk();
+initVoice();
 tryDefaultScene().then(() => {
   if (editMode && !viewer) $('edStatus').textContent = 'التحرير يحتاج web/scene.ply.';
   else if (editMode) $('edStatus').textContent = '';
