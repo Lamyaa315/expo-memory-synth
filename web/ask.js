@@ -3,6 +3,7 @@
 // Hidden when the page runs without that server (python -m http.server, GitHub Pages).
 
 import * as voice from './voice.js';
+import { SCENE } from './scene-config.js';
 
 const $ = (id) => document.getElementById(id);
 const lang = () => document.documentElement.dataset.lang || 'ar';
@@ -83,7 +84,7 @@ async function send(question) {
     const res = await fetch('/api/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, question, lang: lang(), history }),
+      body: JSON.stringify({ scene: SCENE.id, id, question, lang: lang(), history }),
     });
     if (!res.ok) throw new Error(res.status);
     answer = (await res.json()).answer;

@@ -50,6 +50,19 @@
     box-shadow: 0 -8px 32px rgba(10, 14, 30, .35);
     transition: transform .35s ease;
   }
+  .panel.closed { display: none; }
+  .panel-close {
+    position: absolute; top: .55rem; inset-inline-end: .6rem; width: 2rem; height: 2rem; border-radius: 50%;
+    border: 0; background: rgba(29, 36, 64, .08); color: var(--ink); font: 600 1.1rem/1 var(--font); cursor: pointer;
+  }
+  .panel-close:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .scene-switch { position: fixed; z-index: 9; top: 1.25rem; inset-inline-start: 1.25rem; width: 300px;
+    margin: 0; background: rgba(230, 227, 218, .92); box-shadow: 0 6px 22px rgba(0, 0, 0, .3); }
+  @media (max-width: 899px) {
+    .scene-switch { top: auto; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); inset-inline-start: 50%;
+      transform: translateX(50%); width: min(300px, calc(100vw - 32px)); }
+    [dir="ltr"] .scene-switch { transform: translateX(-50%); }
+  }
   .panel.collapsed { transform: translateY(calc(100% - 4.4rem - env(safe-area-inset-bottom, 0px))); }
   .panel.spot-mode { max-height: 42vh; }
 
@@ -79,6 +92,16 @@
   .highlights { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1.1rem; padding: 0; list-style: none; }
   .highlights li { font-size: .85rem; padding: .3rem .7rem; border: 1px solid #C9C4B5; border-radius: 999px; }
 
+  /* Pavilion picker */
+  .scenes { display: flex; gap: .4rem; margin: 0 0 .8rem; padding: .25rem; background: #D9D5C9; border-radius: 12px; }
+  .scenes button {
+    flex: 1 1 0; font: inherit; font-size: .9rem; padding: .5rem .6rem; border: 0; border-radius: 9px;
+    background: transparent; color: var(--ink-soft); cursor: pointer;
+  }
+  .scenes[hidden] { display: none; }
+  .scenes button[aria-current="true"] { background: var(--stone); color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(29, 36, 64, .18); }
+  .scenes button:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+
   .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
   button.primary, button.ghost, label.ghost {
     font: inherit; font-size: .95rem; border-radius: 10px; padding: .7rem 1.1rem; cursor: pointer;
@@ -93,6 +116,73 @@
   .film-link:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; border-radius: 4px; }
 
   .hint { font-size: .8rem; color: var(--ink-soft); margin: .9rem 0 0; line-height: 1.6; }
+
+  .tour-fade { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: #110e0c; opacity: 0; transition: opacity .35s ease; }
+  .tour-fade.on { opacity: 1; }
+  /* Look-alikes from other cultures */
+  .culture {
+    position: fixed; z-index: 8; top: 1.25rem; inset-inline-start: 1.25rem; width: 300px; max-width: calc(100vw - 32px);
+    background: rgba(230, 227, 218, .95); color: var(--ink); border-radius: 14px; padding: .8rem .9rem .6rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    opacity: 0; transform: translateY(-8px); transition: opacity .4s ease, transform .4s ease; pointer-events: none;
+  }
+  .culture.on { opacity: 1; transform: none; pointer-events: auto; }
+  .culture h2 { font-size: .92rem; margin: 0 0 .55rem; padding-inline-end: 1.8rem; }
+  .culture-close { position: absolute; top: .45rem; inset-inline-end: .5rem; width: 1.7rem; height: 1.7rem; border-radius: 50%;
+    border: 0; background: rgba(29, 36, 64, .08); color: var(--ink); font: 600 1rem/1 var(--font); cursor: pointer; }
+  .culture-list { display: flex; flex-direction: column; gap: .5rem; }
+  .culture-item { display: flex; gap: .6rem; align-items: center; color: inherit; text-decoration: none;
+    background: #F4F2EC; border-radius: 10px; padding: .4rem; }
+  .culture-item:hover { background: #ECE8DE; }
+  .culture-item:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .culture-item img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex: none; background: #DDD8CB; }
+  .culture-item span { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+  .culture-item b { font-size: .86rem; }
+  .culture-item small { font-size: .78rem; line-height: 1.5; color: var(--ink-soft); }
+  .culture-credit { font-size: .7rem; color: var(--ink-soft); margin: .45rem 0 0; }
+  @media (max-width: 899px) {
+    /* phones: a slim card at the bottom, the tour bar is at the top */
+    .culture { top: auto; bottom: calc(.75rem + env(safe-area-inset-bottom, 0px)); inset-inline-start: 50%;
+      transform: translate(50%, 8px); width: min(340px, calc(100vw - 24px)); padding: .6rem .7rem .45rem; }
+    [dir="ltr"] .culture { transform: translate(-50%, 8px); }
+    .culture.on { transform: translate(50%, 0); }
+    [dir="ltr"] .culture.on { transform: translate(-50%, 0); }
+    .culture-list { flex-direction: row; overflow-x: auto; }
+    .culture-item { flex: 0 0 85%; }
+    .culture-item img { width: 52px; height: 52px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .culture { transition: none; } }
+  .scene-toast {
+    position: fixed; z-index: 8; top: 42%; left: 50%; transform: translate(-50%, 8px); margin: 0;
+    font: 600 1.6rem/1.3 var(--font); color: var(--stone); text-shadow: 0 2px 16px rgba(0, 0, 0, .7);
+    opacity: 0; transition: opacity .5s ease, transform .5s ease; pointer-events: none; white-space: nowrap;
+  }
+  .scene-toast.on { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { .tour-fade { transition: none; } }
+
+  /* Walking */
+  .walk-hint {
+    position: fixed; z-index: 8; left: 50%; bottom: 5.4rem; transform: translateX(-50%); margin: 0;
+    padding: .45rem .9rem; border-radius: 999px; font-size: .85rem; white-space: nowrap;
+    color: var(--stone); background: rgba(20, 17, 14, .6); pointer-events: none; transition: opacity .8s ease;
+  }
+  .walk-hint.fade { opacity: 0; }
+  .walk-hint[hidden], .walk-pad[hidden] { display: none; }
+  .walk-pad {
+    position: fixed; z-index: 8; left: 16px; bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 48px); gap: 4px;
+    direction: ltr;
+  }
+  .walk-pad button {
+    border: 0; border-radius: 12px; font-size: 1.1rem; color: var(--stone); background: rgba(20, 17, 14, .6);
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .walk-pad button:active { background: var(--teal); }
+  .walk-pad [data-move="fwd"] { grid-area: 1 / 2; }
+  .walk-pad [data-move="left"] { grid-area: 2 / 1; }
+  .walk-pad [data-move="right"] { grid-area: 2 / 3; }
+  .walk-pad [data-move="back"] { grid-area: 3 / 2; }
+  @media (max-width: 899px) { .walk-hint { top: 70px; bottom: auto; } }
 
   /* Corridor tour bar */
   .tour {
@@ -117,6 +207,11 @@
     /* The bottom sheet is at the bottom on phones */
     .tour { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; }
     .tour button { padding: .5rem .7rem; font-size: .85rem; }
+  }
+  @media (max-width: 440px) {
+    .tour { gap: .2rem; padding: .3rem; }
+    .tour button { padding: .45rem .55rem; font-size: .78rem; }
+    .tour-count { font-size: .74rem; padding: 0 .15rem; }
   }
 
   /* Hotspot markers */
@@ -146,6 +241,67 @@
     flex: none; display: inline-grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%;
     background: var(--saffron); color: var(--ink); font-size: .95rem; font-weight: 600;
   }
+
+  /* The tour guide: a Saudi guide standing in the corner of the scene; tap him to ask (guide.js) */
+  .guide {
+    position: fixed; z-index: 9; bottom: .4rem; inset-inline-end: 1.25rem; width: 100px;
+    padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .guide[hidden] { display: none; }
+  .guide svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .45));
+    animation: guide-idle 4s ease-in-out infinite; transform-origin: 50% 100%; }
+  .guide:focus-visible { outline: 3px solid var(--saffron); outline-offset: 4px; border-radius: 16px; }
+  .guide .mouth-open { display: none; }
+  .guide.speaking .mouth-closed { display: none; }
+  .guide.speaking .mouth-open { display: inline; animation: guide-talk .32s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+  .guide.speaking svg { animation: guide-speak 1.6s ease-in-out infinite; }
+  .guide .hand { transform-box: view-box; transform-origin: 86px 92px; }
+  .guide.waving .hand { animation: guide-wave .5s ease-in-out 4 alternate; }
+  .guide-bubble {
+    position: absolute; bottom: calc(100% - .5rem); inset-inline-end: 62%; width: max-content; max-width: 210px;
+    background: var(--stone); color: var(--ink); font: 600 .88rem/1.5 var(--font); text-align: start;
+    padding: .5rem .8rem; border-radius: 14px 14px 14px 4px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+    opacity: 0; transform: translateY(6px); transition: opacity .25s ease, transform .25s ease; pointer-events: none;
+  }
+  .guide-bubble.on { opacity: 1; transform: none; }
+  .guide.has-photo svg { display: none; }
+  .guide.has-photo { width: 84px; }
+  @media (max-width: 899px) { .guide.has-photo { width: 50px; } }
+  .guide-photo { display: block; width: 100%; height: auto; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .45));
+    animation: guide-idle 4s ease-in-out infinite; transform-origin: 50% 100%; }
+  .guide-photo[hidden] { display: none; }
+  .guide.speaking .guide-photo { animation: guide-speak 1.6s ease-in-out infinite; }
+  .guide.waving .guide-photo { animation: guide-hello .45s ease-in-out 4 alternate; }
+  /* Sound waves by his head while he speaks (a picture can't move its mouth) */
+  .guide-waves { position: absolute; top: 6%; inset-inline-start: 78%; width: 26px; height: 26px; display: none; }
+  .guide.speaking.has-photo .guide-waves { display: block; }
+  .guide-waves i { position: absolute; inset: 0; border: 2px solid var(--saffron); border-radius: 50%;
+    border-inline-start-color: transparent; border-bottom-color: transparent; opacity: 0; animation: guide-wave-out 1.2s ease-out infinite; }
+  .guide-waves i:nth-child(2) { animation-delay: .4s; }
+  .guide-waves i:nth-child(3) { animation-delay: .8s; }
+  @keyframes guide-wave-out { from { transform: scale(.4); opacity: .9; } to { transform: scale(1.4); opacity: 0; } }
+  @keyframes guide-hello { from { transform: rotate(0); } to { transform: rotate(-3deg) translateY(-3px); } }
+  @keyframes guide-idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes guide-speak { 0%, 100% { transform: translateY(0) rotate(0); } 25% { transform: translateY(-2px) rotate(-1deg); } 75% { transform: translateY(-1px) rotate(1deg); } }
+  @keyframes guide-talk { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
+  @keyframes guide-wave { from { transform: rotate(0); } to { transform: rotate(-28deg); } }
+  @media (max-width: 899px) {
+    /* The sheet covers the bottom on phones: he stands under the tour bar */
+    .guide { top: calc(62px + env(safe-area-inset-top, 0px)); bottom: auto; inset-inline-end: .5rem; width: 58px; }
+    .guide-bubble { bottom: auto; top: 18%; inset-inline-end: 100%; max-width: 170px; font-size: .8rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .guide svg, .guide.speaking svg, .guide.waving .hand, .guide-photo, .guide.speaking .guide-photo,
+    .guide.waving .guide-photo, .guide-waves i { animation: none; }
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 0 .6rem; }
+  .chip { font: inherit; font-size: .82rem; padding: .35rem .7rem; border-radius: 999px; cursor: pointer;
+    background: #F4F2EC; color: var(--teal); border: 1px solid #C9C4B5; }
+  .chip:hover { background: #EAE6DC; }
+  .chip:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .listen-btn { align-self: flex-end; font-size: .85rem !important; padding: .4rem .8rem !important; }
+  .demo-note { font-size: .78rem; color: #8A5A12; background: #F3E7CF; border-radius: 8px; padding: .35rem .6rem; margin: 0 0 .6rem; }
 
   /* Questions */
   .ask { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid #C9C4B5; }
@@ -227,11 +383,115 @@
     <button type="button" class="tour-auto" id="tourAuto" aria-pressed="false">▶ جولة تلقائية</button>
   </nav>
 
+  <!-- The tour guide (guide.js): white ghutra and black agal, white thobe, holding a museum folder bag -->
+  <button type="button" class="guide" id="guideBtn" aria-label="اسأل المرشد" hidden>
+    <span class="guide-bubble" id="guideBubble" aria-hidden="true"></span>
+    <!-- A realistic picture of him when web/guide.png exists (scripts/cutout.py); the drawing below otherwise -->
+    <img class="guide-photo" id="guidePhoto" alt="" hidden>
+    <span class="guide-waves" aria-hidden="true"><i></i><i></i><i></i></span>
+    <svg viewBox="0 0 120 220" aria-hidden="true">
+      <defs>
+        <linearGradient id="gWhite" x1="0" x2="1">
+          <stop offset="0" stop-color="#DCD8D0"/><stop offset=".32" stop-color="#FFFFFF"/>
+          <stop offset=".7" stop-color="#F5F3EE"/><stop offset="1" stop-color="#D3CEC4"/>
+        </linearGradient>
+        <linearGradient id="gCloth" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E6E2DA"/>
+        </linearGradient>
+        <radialGradient id="gSkin" cx=".42" cy=".36" r=".7">
+          <stop offset="0" stop-color="#EDBB98"/><stop offset=".7" stop-color="#D69C75"/><stop offset="1" stop-color="#BF8460"/>
+        </radialGradient>
+        <radialGradient id="gHand" cx=".4" cy=".35" r=".8">
+          <stop offset="0" stop-color="#E8B492"/><stop offset="1" stop-color="#C08561"/>
+        </radialGradient>
+      </defs>
+      <!-- ground shadow and shoes -->
+      <ellipse cx="60" cy="214" rx="34" ry="4.5" fill="rgba(0,0,0,.2)"/>
+      <ellipse cx="49" cy="208" rx="10" ry="5" fill="url(#gCloth)" stroke="#D5D0C6" stroke-width=".8"/>
+      <ellipse cx="71" cy="208" rx="10" ry="5" fill="url(#gCloth)" stroke="#D5D0C6" stroke-width=".8"/>
+      <!-- ghutra falling behind the shoulders -->
+      <path d="M38 40 Q33 66 31 94 L89 94 Q87 66 82 40 Z" fill="url(#gWhite)"/>
+      <!-- thobe -->
+      <path d="M38 86 Q60 80 82 86 Q91 90 91 102 L95 205 Q60 211 25 205 L29 102 Q29 90 38 86 Z" fill="url(#gWhite)" stroke="#D8D3C9" stroke-width=".9"/>
+      <path d="M60 90 V142" stroke="#E0DCD3" stroke-width="1.2"/>
+      <circle cx="60" cy="99" r="1" fill="#CBC5BA"/><circle cx="60" cy="109" r="1" fill="#CBC5BA"/>
+      <circle cx="60" cy="119" r="1" fill="#CBC5BA"/><circle cx="60" cy="129" r="1" fill="#CBC5BA"/>
+      <rect x="65" y="98" width="14" height="9" rx="1.5" fill="none" stroke="#E1DDD4" stroke-width="1"/>
+      <!-- the arm with the bag -->
+      <path d="M34 90 Q24 112 25 150 L34 151 Q35 120 41 100 Z" fill="url(#gWhite)" stroke="#D8D3C9" stroke-width=".9"/>
+      <ellipse cx="29.5" cy="155" rx="4.6" ry="6.2" fill="url(#gHand)"/>
+      <path d="M21 162 Q21 152 29 152 Q37 152 37 162" stroke="#ECE9E3" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+      <rect x="14" y="161" width="30" height="25" rx="3.5" fill="url(#gCloth)" stroke="#D3CEC4" stroke-width=".9"/>
+      <path d="M14 164.5 H44 V173 Q29 176 14 173 Z" fill="#F8F7F3" stroke="#DAD6CD" stroke-width=".8"/>
+      <rect x="21" y="171" width="2.4" height="5" rx="1" fill="#E3DFD7" stroke="#CFCABF" stroke-width=".5"/>
+      <rect x="34.6" y="171" width="2.4" height="5" rx="1" fill="#E3DFD7" stroke="#CFCABF" stroke-width=".5"/>
+      <!-- the other arm (waves hello) -->
+      <g class="hand">
+        <path d="M86 90 Q96 112 95 150 L86 151 Q85 120 79 100 Z" fill="url(#gWhite)" stroke="#D8D3C9" stroke-width=".9"/>
+        <ellipse cx="90.5" cy="155" rx="4.6" ry="6.2" fill="url(#gHand)"/>
+      </g>
+      <!-- collar and neck -->
+      <rect x="55" y="70" width="10" height="15" rx="3" fill="#C38962"/>
+      <path d="M51 83 Q60 88 69 83 L69 88 Q60 93 51 88 Z" fill="#F4F2ED" stroke="#D8D3C9" stroke-width=".8"/>
+      <!-- ghutra sides framing the face -->
+      <path d="M43 33 Q34 52 35 76 L46 72 Q44 54 47 40 Z" fill="url(#gWhite)"/>
+      <path d="M77 33 Q86 52 85 76 L74 72 Q76 54 73 40 Z" fill="url(#gWhite)"/>
+      <!-- ears and face -->
+      <ellipse cx="43.5" cy="50" rx="3" ry="4.6" fill="#CF9670"/>
+      <ellipse cx="76.5" cy="50" rx="3" ry="4.6" fill="#CF9670"/>
+      <ellipse cx="60" cy="50" rx="16.5" ry="20.5" fill="url(#gSkin)"/>
+      <!-- beard and moustache -->
+      <path d="M44 52 Q45 72 60 74.5 Q75 72 76 52 Q74 62 68.5 64 Q60 60.5 51.5 64 Q46 62 44 52 Z" fill="#2E2622"/>
+      <path d="M53 61 Q60 57.6 67 61 Q60 63.2 53 61 Z" fill="#2E2622"/>
+      <path class="mouth-closed" d="M56.5 65.6 Q60 67.4 63.5 65.6" stroke="#C07B66" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <ellipse class="mouth-open" cx="60" cy="66.2" rx="3" ry="2.1" fill="#5A221A"/>
+      <!-- nose -->
+      <path d="M60.5 49 Q57.6 55.5 59 57.2 Q61 58 62.6 56.8" stroke="#A86D4D" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+      <!-- eyes and brows -->
+      <ellipse cx="53" cy="46.5" rx="4" ry="4.7" fill="#FFFFFF"/><ellipse cx="67" cy="46.5" rx="4" ry="4.7" fill="#FFFFFF"/>
+      <circle cx="53.5" cy="47.3" r="2.7" fill="#5B3A24"/><circle cx="66.5" cy="47.3" r="2.7" fill="#5B3A24"/>
+      <circle cx="53.5" cy="47.3" r="1.3" fill="#151515"/><circle cx="66.5" cy="47.3" r="1.3" fill="#151515"/>
+      <circle cx="54.4" cy="46.2" r=".8" fill="#FFFFFF"/><circle cx="67.4" cy="46.2" r=".8" fill="#FFFFFF"/>
+      <path d="M48.3 40.6 Q53 37.8 57.2 40" stroke="#2E2622" stroke-width="2.3" fill="none" stroke-linecap="round"/>
+      <path d="M62.8 40 Q67 37.8 71.7 40.6" stroke="#2E2622" stroke-width="2.3" fill="none" stroke-linecap="round"/>
+      <!-- ghutra over the forehead -->
+      <path d="M41 37 Q42 15 60 14 Q78 15 79 37 Q70 29.5 60 29.5 Q50 29.5 41 37 Z" fill="url(#gWhite)" stroke="#E2DED5" stroke-width=".6"/>
+      <!-- agal -->
+      <ellipse cx="60" cy="22.5" rx="19.5" ry="4.2" fill="none" stroke="#1C1C1C" stroke-width="3"/>
+      <ellipse cx="60" cy="26.5" rx="20.5" ry="4.4" fill="none" stroke="#2A2A2A" stroke-width="3"/>
+    </svg>
+  </button>
+
+  <!-- Walking: a hint for the keys, and a pad on touch screens (walk.js) -->
+  <p class="walk-hint" id="walkHint" hidden>امشِ بالأسهم ↑ ↓ والتفت ← → ، واسحب بالماوس عشان تتلفت</p>
+  <div class="walk-pad" id="walkPad" hidden aria-label="أزرار المشي">
+    <button type="button" data-move="fwd" aria-label="قدام">▲</button>
+    <button type="button" data-move="right" aria-label="التفت يمين">▶</button>
+    <button type="button" data-move="back" aria-label="ورا">▼</button>
+    <button type="button" data-move="left" aria-label="التفت يسار">◀</button>
+  </div>
+
+  <!-- Dims the scene while the tour jumps between stops -->
+  <div class="tour-fade" id="tourFade" aria-hidden="true"></div>
+  <p class="scene-toast" id="sceneToast" aria-live="polite"></p>
+
+  <!-- Look-alikes from other cultures for the current stop (culture.js) -->
+  <aside class="culture" id="cultureCard" aria-live="polite">
+    <button type="button" class="culture-close" id="cultureClose" aria-label="سكّر">×</button>
+    <h2 id="cultureTitle"></h2>
+    <div class="culture-list" id="cultureList"></div>
+    <p class="culture-credit" id="cultureCredit"></p>
+  </aside>
+
   <!-- Hotspot markers, positioned over the 3D scene by hotspots.js -->
   <div class="spots" id="spots"></div>
 
-  <section class="panel" id="panel">
+  <!-- Pavilion switch: floats over the scene (the panel is closed at first) -->
+  <nav class="scenes scene-switch" id="scenePicker" aria-label="الأجنحة"></nav>
+
+  <section class="panel closed" id="panel">
     <button class="handle" id="handle" aria-label="إظهار أو إخفاء التفاصيل"><span></span></button>
+    <button type="button" class="panel-close" id="panelClose" aria-label="سكّر">×</button>
 
     <!-- The scene's story -->
     <div id="storyView">
@@ -246,7 +506,20 @@
           <input type="file" id="fileInput" accept=".ply,.splat,.ksplat">
         </label>
       </div>
-      <a class="film-link" href="film.html">زرت المكان؟ سوّ فيلم من صور رحلتك ←</a>
+      <!-- The tour guide: needs scripts/server.py with an API key (guide.js) -->
+      <div class="ask" id="guide" hidden>
+        <h2 id="guideTitle">اسأل المرشد</h2>
+        <p class="hint" id="guideIntro"></p>
+        <div class="chat" id="guideChat" aria-live="polite" hidden></div>
+        <div class="chips" id="guideChips"></div>
+        <p class="demo-note" id="guideDemo" hidden></p>
+        <form class="ask-form" id="guideForm">
+          <input id="guideInput" type="text" maxlength="300" autocomplete="off" aria-labelledby="guideTitle">
+          <button type="button" class="ghost mic" id="guideMic" hidden>🎙</button>
+          <button type="submit" class="primary" id="guideSend">اسأل</button>
+        </form>
+      </div>
+      <a class="film-link" id="filmLink" href="film.html">زرت المكان؟ سوّ فيلم من صور رحلتك ←</a>
       <p class="hint" id="hint">اسحب للدوران، وكبّر بإصبعين أو بعجلة الفأرة.</p>
     </div>
 
@@ -329,11 +602,13 @@
 <script type="module">
 import * as GS from '@mkkellogg/gaussian-splats-3d';
 // Scene settings (camera angle, file name) live in scene-config.js
-import { findScene, CAMERA } from './scene-config.js';
+import { findScene, CAMERA, SCENES, SCENE, sceneUrl, withScene } from './scene-config.js';
 import { initHotspots, clearHotspots } from './hotspots.js';
 import { initAsk } from './ask.js';
+import { initGuide } from './guide.js';
+import { initCulture } from './culture.js';
 import { initVoice } from './voice.js';
-import { makeFloorScene, enableLimits } from './stage.js';
+import { makeFloorScene, enableLimits, trackSorting } from './stage.js';
 import { initTour } from './tour.js';
 
 const $ = (id) => document.getElementById(id);
@@ -345,7 +620,16 @@ const editMode = new URLSearchParams(location.search).has('edit');
 
 // ---------- 3D viewer ----------
 async function loadScene(url, format) {
-  if (viewer) { clearHotspots(); $('tourBar').hidden = true; await viewer.dispose(); viewer = null; $('stage').innerHTML = ''; }
+  if (viewer) {
+    clearHotspots(); $('tourBar').hidden = true;
+    await viewer.dispose(); viewer = null;
+    if (!$('stage')) {   // disposing the viewer removes its root element: put a fresh one back
+      const stage = Object.assign(document.createElement('div'), { id: 'stage' });
+      stage.setAttribute('aria-label', 'مشهد ثلاثي الأبعاد للجناح');
+      document.body.prepend(stage);
+    }
+    $('stage').innerHTML = '';
+  }
   viewer = new GS.Viewer({
     ...CAMERA,
     rootElement: $('stage'),
@@ -354,8 +638,17 @@ async function loadScene(url, format) {
   });
   const opts = { showLoadingUI: true, splatAlphaRemovalThreshold: 5 };
   if (format !== undefined) opts.format = format;
-  await viewer.addSplatScene(url, opts);
+  const extras = url === URL_DEFAULT ? SCENE.extras || [] : [];
+  if (extras.length) {
+    // The scan and the pieces that belong to its tour, in one space
+    await viewer.addSplatScenes([{ path: url, ...opts }, ...extras.map((x) => ({
+      path: sceneUrl(x.file), position: x.position || [0, 0, 0], splatAlphaRemovalThreshold: opts.splatAlphaRemovalThreshold,
+    }))], true);
+  } else {
+    await viewer.addSplatScene(url, opts);
+  }
   viewer.start();
+  trackSorting(viewer);
   $('empty').hidden = true;
 }
 
@@ -366,9 +659,10 @@ async function tryDefaultScene() {
     URL_DEFAULT = url;
     await loadScene(url);
     // The tour, hotspots and limits belong to this scene, so they only load with it (not with a file opened by hand)
-    await initTour(viewer);                  // starts at the first stop of the filmed path, if there is one
+    const tour = await initTour(viewer);     // starts at the first stop of the filmed path, if there is one
     await initHotspots(viewer, { editMode }); // a starting angle saved in the editor wins
-    if (!editMode) enableLimits(viewer);      // the editor can go anywhere
+    // Orbit limits only when not walking (walking keeps visitors on the filmed path); the editor goes anywhere
+    if (!editMode && !tour?.walk) enableLimits(viewer);
   } catch (e) { console.error(e); }
 }
 
@@ -415,15 +709,40 @@ function render() {
   const place = story.place ? `، ${story.place}` : '';
   $('fresh').textContent = (ago || (en ? 'Captured by an on-site visitor' : 'صوّره زائر في الموقع')) + place;
   $('langBtn').textContent = en ? 'العربية' : 'English';
+  renderScenes();
 }
+
+// One button per pavilion; picking one reloads the page on it (keeps ?edit)
+function renderScenes() {
+  const nav = $('scenePicker');
+  nav.hidden = true;   // the pavilions play as one connected tour (tour.js), so there is nothing to pick; set SCENES.length < 2 to show it again
+  nav.setAttribute('aria-label', lang === 'en' ? 'Pavilions' : 'الأجنحة');
+  nav.replaceChildren(...SCENES.map((s) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = lang === 'en' ? s.title_en : s.title;
+    b.setAttribute('aria-current', String(s.id === SCENE.id));
+    b.addEventListener('click', () => {
+      if (s.id === SCENE.id) return;
+      const url = new URL(location.href);
+      url.searchParams.set('scene', s.id);
+      url.searchParams.delete('stop'); url.searchParams.delete('auto');
+      location.href = url;
+    });
+    return b;
+  }));
+}
+$('filmLink').href = withScene('film.html');
 
 async function loadStory() {
   try {
-    const res = await fetch('narration.json');
-    story = await res.json();
+    // The pavilion's own story if it has one (web/scenes/<id>/narration.json), else the sample with its name
+    const own = await fetch(sceneUrl('narration.json'));
+    story = await (own.ok ? own : await fetch('narration.json')).json();
+    if (!own.ok) Object.assign(story, { title: SCENE.title, title_en: SCENE.title_en });
   } catch (e) {
     story = {
-      title: 'جناح تراثي',
+      title: SCENE.title, title_en: SCENE.title_en,
       narration_ar: 'شغّل سكربت narrate.py لتوليد السرد الثقافي لهذا المشهد.',
       narration_en: 'Run narrate.py to generate the cultural narration for this scene.',
       highlights: [],
@@ -469,6 +788,12 @@ narr.addEventListener('ended', () => { $('tourBtn').textContent = 'أعد الج
 
 // ---------- Mobile bottom sheet ----------
 $('handle').addEventListener('click', () => $('panel').classList.toggle('collapsed'));
+// The panel opens from the guide or a point on a piece, and closes back to the bare scene
+$('panelClose').addEventListener('click', () => {
+  $('panel').classList.add('closed');
+  document.dispatchEvent(new Event('panel:close'));
+});
+if (editMode) $('panel').classList.remove('closed');
 
 if (editMode) {
   $('storyView').hidden = true;
@@ -483,6 +808,7 @@ document.addEventListener('keydown', (e) => {
 
 loadStory();
 initAsk();
+if (!editMode) { initGuide(); initCulture(); }
 initVoice();
 tryDefaultScene().then(() => {
   if (editMode && !viewer) $('edStatus').textContent = 'التحرير يحتاج web/scene.ply.';

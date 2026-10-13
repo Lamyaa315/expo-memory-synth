@@ -5,9 +5,9 @@ data/*
 *.mov
 results/
 outputs/
-web/*.ply
-web/*.splat
-web/*.ksplat
+web/**/*.ply
+web/**/*.splat
+web/**/*.ksplat
 web/audio/*.mp3
 !web/audio/.gitkeep
 

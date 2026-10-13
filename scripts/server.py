@@ -3,10 +3,14 @@ Local server for the web viewer, with "ask about this piece", automatic descript
 Serves web/ like `python -m http.server`, plus:
     GET  /api/health    -> {"ask": bool, "describe": bool, "tts": bool}
     POST /api/ask       -> {"answer": "..."}
-         body: {"id": "h1", "question": "...", "lang": "ar", "history": [{"role": "user"|"assistant", "content": "..."}]}
+         body: {"scene": "corner", "id": "h1", "question": "...", "lang": "ar", "history": [{"role": "user"|"assistant", "content": "..."}]}
     POST /api/describe  -> {"title", "title_en", "text_ar", "text_en", "label_text"}   (editor only)
-         body: {"id": "h1", "image": "data:image/jpeg;base64,...", "label_image": "data:...", "notes": "..."}
-         Also saves the view as web/photos/<id>.jpg so answers can see the piece.
+         body: {"scene": "corner", "id": "h1", "image": "data:image/jpeg;base64,...", "label_image": "data:...", "notes": "..."}
+         Also saves the view as web/scenes/<scene>/photos/<id>.jpg so answers can see the piece.
+    "scene" is the pavilion folder in web/scenes/ (its hotspots.json); without it, web/ itself.
+    POST /api/guide     -> {"answer": "..."}   the tour guide: questions about whatever the visitor is looking at
+         body: {"scene": "corner", "scene_title": "...", "image": "data:image/jpeg;base64,...", "question": "...",
+                "lang": "ar", "history": [...]}   (uses the view, labels visible in it, and the pavilion's hotspots)
     POST /api/tts       -> audio/wav|mpeg  body: {"text": "..."}   (Gemini voices, edge-tts as backup: see tts.py)
 
 Keys stay here on the server, never in the page. Put ONE of these in a .env file at the repo root:
@@ -44,6 +48,7 @@ MAX_DESCRIBE_BODY = 12_000_000
 MAX_TTS_TEXT = 1500
 MAX_ANSWER_TOKENS = 500
 SPOT_ID = re.compile(r"^h\d{1,4}$")
+SCENE_ID = re.compile(r"^[a-z0-9_-]{1,32}$")
 
 SYSTEM = """You are a museum guide answering a remote visitor's questions about ONE piece in a museum in Riyadh.
 The visitor is looking at a 3D scan of it and cannot travel there.
@@ -60,6 +65,32 @@ Rules:
   but say clearly that it is general background and not information about this exact piece.
 - If the answer is not available, say so plainly and suggest asking the museum staff. Never guess or invent details.
 - If the question is not about the piece or the museum, answer briefly and gently bring the visitor back to the piece.
+"""
+
+GUIDE = """You are a friendly tour guide in a museum in Riyadh, walking a remote visitor through the pavilion
+"{scene_title}". The visitor cannot travel there and is looking at a 3D scan of it. The attached image is exactly
+what they see right now (the edges of a scan can be blurry).
+
+What the museum team wrote about this pavilion and its pieces (may be empty):
+<pieces>
+{pieces}
+</pieces>
+
+Rules:
+- Answer in {language}, in 2-4 short sentences that sound natural when spoken. No lists, no markdown, no emojis.
+- Work out which piece they mean: the one in the middle of the view, unless the question says otherwise.
+- Facts about a specific piece (which civilization, how old, date, origin, who made it, what an inscription says)
+  may only come from the team's notes above or from a museum label you can clearly read in the image.
+- If neither has the answer, say plainly that you don't know it for sure. You may then add widely known general
+  background about this kind of object, framed as general ("غالباً"، "عادةً في الجزيرة العربية"), never as a fact
+  about this exact piece. Never guess numbers, dates, names or a civilization.
+- Cultural links (this guide is about cultural heritage): when asked what a piece resembles, or when it helps, connect
+  it to similar objects from other cultures that are widely known (for example inscribed stelae in Egypt, Aksum or
+  Mesopotamia, Nabataean inscriptions, tombstones in Al-Andalus or Anatolia). Say what is alike (shape, purpose,
+  script, carving) and what is different. Present it as a likeness between traditions, never as a proven link or
+  shared origin, and use the pavilion notes for such links when they have them.
+- If the piece is not clearly visible, say so and suggest moving to the next stop or tapping its point.
+- If the question is not about the museum, answer briefly and gently bring the visitor back to the pieces.
 """
 
 DESCRIBE = """You are writing the spoken guide for ONE piece in a museum in Riyadh, for visitors who cannot travel there.
@@ -81,7 +112,7 @@ Rules:
 Return ONLY a JSON object (no markdown, no preamble) with these keys:
 - "title": short Arabic title (2-5 words)
 - "title_en": the same title in English
-- "text_ar": 70-110 words of narration in warm, simple Modern Standard Arabic
+- "text_ar": 70-110 words of narration in warm, natural Saudi dialect (the everyday Riyadh/Najdi way of speaking that any Arab understands), written in Arabic script
 - "text_en": the same narration in English
 - "label_text": the text you can read on the museum label image, or "" if there is none
 """
@@ -100,8 +131,19 @@ def load_env():
                 os.environ.setdefault(key.strip(), value)
 
 
-def find_hotspot(spot_id):
-    data = json.loads((WEB / "hotspots.json").read_text(encoding="utf-8"))
+def scene_dir(body):
+    """web/scenes/<id>/ for the pavilion the request is about (web/ for a site without pavilions)."""
+    scene = str(body.get("scene", ""))
+    if SCENE_ID.match(scene) and (WEB / "scenes" / scene).is_dir():
+        return WEB / "scenes" / scene
+    return WEB
+
+
+def find_hotspot(folder, spot_id):
+    path = folder / "hotspots.json"
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
     return next((h for h in data.get("hotspots", []) if h.get("id") == spot_id), None)
 
 
@@ -115,10 +157,10 @@ def piece_info(h):
     return "\n".join(lines) or "(The team has not written anything about this piece yet.)"
 
 
-def find_photo(spot_id):
-    """(media_type, base64 data) of web/photos/<id>.jpg|png, or None."""
+def find_photo(folder, spot_id):
+    """(media_type, base64 data) of <scene folder>/photos/<id>.jpg|png, or None."""
     for ext, media in ((".jpg", "image/jpeg"), (".jpeg", "image/jpeg"), (".png", "image/png")):
-        path = WEB / "photos" / f"{spot_id}{ext}"
+        path = folder / "photos" / f"{spot_id}{ext}"
         if path.exists():
             return media, base64.b64encode(path.read_bytes()).decode()
     return None
@@ -293,15 +335,16 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?")[0] == "/api/health":
             on = self.provider is not None
-            return self.send_json(200, {"ask": on, "describe": on, "tts": self.tts})
+            return self.send_json(200, {"ask": on, "describe": on, "guide": on, "tts": self.tts})
         return super().do_GET()
 
     def do_POST(self):
-        route = {"/api/ask": self.ask, "/api/describe": self.describe, "/api/tts": self.speak}.get(self.path.split("?")[0])
+        route = {"/api/ask": self.ask, "/api/describe": self.describe, "/api/guide": self.guide,
+                 "/api/tts": self.speak}.get(self.path.split("?")[0])
         if route is None:
             return self.send_json(404, {"error": "not found"})
         try:
-            body = self.read_body(MAX_DESCRIBE_BODY if route == self.describe else MAX_BODY)
+            body = self.read_body(MAX_DESCRIBE_BODY if route in (self.describe, self.guide) else MAX_BODY)   # these carry pictures
         except OverflowError:
             return self.send_json(413, {"error": "too_large"})
         except (ValueError, json.JSONDecodeError):
@@ -324,18 +367,50 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(503, {"error": "no_key"})
         question = str(body.get("question", "")).strip()[:MAX_QUESTION]
         lang = "en" if body.get("lang") == "en" else "ar"
-        spot = find_hotspot(str(body.get("id", "")))
+        folder = scene_dir(body)
+        spot = find_hotspot(folder, str(body.get("id", "")))
         if not question or spot is None:
             return self.send_json(400, {"error": "missing_question_or_piece"})
 
-        photo = find_photo(spot["id"])
+        photo = find_photo(folder, spot["id"])
         system = SYSTEM.format(
             piece=piece_info(spot),
             photo_note="A photo of the piece is attached to the first message.\n" if photo else "",
-            language="English" if lang == "en" else "simple Modern Standard Arabic",
+            language="English" if lang == "en" else "warm, natural Saudi dialect (the everyday Riyadh/Najdi way of speaking that any Arab understands), written in Arabic script",
         )
         messages = clean_history(body.get("history")) + [{"role": "user", "content": question}]
         answer = self.provider.ask(system, messages, [photo] if photo else []).strip()
+        if not answer:
+            return self.send_json(502, {"error": "empty"})
+        return self.send_json(200, {"answer": answer})
+
+    def guide(self, body):
+        if self.provider is None:
+            return self.send_json(503, {"error": "no_key"})
+        question = str(body.get("question", "")).strip()[:MAX_QUESTION]
+        view = parse_data_url(body.get("image"))   # may be missing: then he answers from the notes only
+        if not question:
+            return self.send_json(400, {"error": "missing_question"})
+        lang = "en" if body.get("lang") == "en" else "ar"
+        folder = scene_dir(body)
+        try:
+            spots = json.loads((folder / "hotspots.json").read_text(encoding="utf-8")).get("hotspots", [])
+        except (OSError, ValueError):
+            spots = []
+        pieces = "\n\n".join(f"Piece {i + 1}:\n{piece_info(h)}" for i, h in enumerate(spots))
+        try:   # notes about the whole pavilion (web/scenes/<id>/guide.json)
+            notes = str(json.loads((folder / "guide.json").read_text(encoding="utf-8")).get("notes", "")).strip()
+        except (OSError, ValueError, AttributeError):
+            notes = ""
+        if notes:
+            pieces = f"About the pavilion:\n{notes[:6000]}" + (f"\n\n{pieces}" if pieces else "")
+        system = GUIDE.format(
+            scene_title=re.sub(r"[\r\n<>]", " ", str(body.get("scene_title", "")))[:80] or "the pavilion",
+            pieces=pieces or "(nothing written yet)",
+            language="English" if lang == "en" else "warm, natural Saudi dialect (the everyday Riyadh/Najdi way of speaking that any Arab understands), written in Arabic script",
+        )
+        messages = clean_history(body.get("history")) + [{"role": "user", "content": question}]
+        answer = self.provider.ask(system, messages, [view] if view else []).strip()
         if not answer:
             return self.send_json(502, {"error": "empty"})
         return self.send_json(200, {"answer": answer})
@@ -351,7 +426,7 @@ class Handler(SimpleHTTPRequestHandler):
         notes = str(body.get("notes", "")).strip()[:4000]
 
         # Keep the view so answers to visitors' questions can see the piece too
-        photos = WEB / "photos"
+        photos = scene_dir(body) / "photos"
         photos.mkdir(exist_ok=True)
         (photos / f"{spot_id}.jpg").write_bytes(base64.b64decode(view[1]))
 

@@ -7,6 +7,18 @@ const player = new Audio();
 let serverVoice = false;
 let token = 0;           // bumps on every speak/stop so late replies don't start talking
 let onDone = null;
+let onBlocked = null;   // called when the browser refuses to play (no recent tap): show a play button
+
+// A tiny silent clip: playing it during a tap lets the page play the real answer later, when it arrives
+// (browsers only allow sound shortly after the visitor touches the page)
+const SILENCE = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+export function unlock() {
+  try {
+    player.src = SILENCE;
+    player.play().catch(() => {});
+  } catch { /* nothing to unlock */ }
+  if ('speechSynthesis' in window) speechSynthesis.resume();
+}
 
 export async function initVoice() {
   try {
@@ -33,8 +45,9 @@ export function playFile(src, text, { onend } = {}) {
   player.play().catch(() => { if (t === token) speakNow(text, t); });
 }
 
-export function speak(text, { onend } = {}) {
+export function speak(text, { onend, onblocked } = {}) {
   const t = start(onend);
+  onBlocked = onblocked || null;
   speakNow(text, t);
 }
 
@@ -67,7 +80,18 @@ async function speakNow(text, t) {
       if (t !== token) return URL.revokeObjectURL(url);
       player.src = url;
       player.onended = () => { URL.revokeObjectURL(url); finish(t); };
-      await player.play();
+      try {
+        await player.play();
+      } catch (e) {
+        if (e?.name === 'NotAllowedError' && onBlocked && t === token) {
+          // The audio is ready but needs a tap: hand the visitor a button that plays it
+          const blocked = onBlocked;
+          onBlocked = null;
+          blocked(() => { player.play().catch(() => {}); });
+          return;
+        }
+        throw e;
+      }
       return;
     } catch {
       if (t !== token) return;

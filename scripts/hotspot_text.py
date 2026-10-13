@@ -28,7 +28,7 @@ Rules:
 Return ONLY a JSON object (no markdown, no preamble) with these keys:
 - "title": short Arabic title (2-5 words)
 - "title_en": the same title in English
-- "text_ar": 40-80 words in warm, simple Modern Standard Arabic
+- "text_ar": 40-80 words in warm, natural Saudi dialect (the everyday Riyadh/Najdi way of speaking that any Arab understands), written in Arabic script
 - "text_en": the same explanation in English
 """
 

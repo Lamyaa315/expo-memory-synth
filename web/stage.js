@@ -41,10 +41,17 @@ export function makeFloorScene() {
   const up = new THREE.Vector3(...config.CAMERA.cameraUp).normalize();
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), up);
   mesh.position.fromArray(floor.center);
+  mesh.userData.floor = true;
 
   const scene = new THREE.Scene();
   scene.add(mesh);
   return scene;
+}
+
+// Inside a walked-through scan the real floor is there, and the soft floor would cover the splats
+export function hideFloor(viewer) {
+  viewer?.threeScene?.children.forEach((c) => { if (c.userData.floor) c.visible = false; });
+  viewer?.forceRenderNextFrame();
 }
 
 // ---------- Limits ----------
@@ -96,6 +103,44 @@ export function setHome(view) {
   home = view && { position: view.position.clone(), target: view.target.clone() };
 }
 
+export const isFlying = () => flight !== null;
+
+// The viewer re-sorts splats (and picks which parts of the scene to draw) only after the camera moves a
+// full scene unit or turns ~8 degrees. Our scans are only a couple of units across, so walking a little
+// left the view sorted for an old spot: empty, smeared or overlapping. Re-sort on small moves too.
+const SORT_MOVE = 0.03;   // scene units
+const SORT_TURN = 0.999;  // cosine of the angle
+export function trackSorting(viewer) {
+  const lastPos = new THREE.Vector3(Infinity, 0, 0);
+  const lastDir = new THREE.Vector3();
+  const dir = new THREE.Vector3();
+  const frame = () => {
+    if (viewer.isDisposingOrDisposed?.()) return;
+    const cam = viewer.camera;
+    if (cam && viewer.splatRenderReady && !viewer.sortRunning) {
+      cam.updateMatrixWorld();
+      dir.set(0, 0, -1).applyQuaternion(cam.quaternion);
+      if (cam.position.distanceTo(lastPos) > SORT_MOVE || dir.dot(lastDir) < SORT_TURN) {
+        lastPos.copy(cam.position);
+        lastDir.copy(dir);
+        viewer.runSplatSort(true);   // the viewer redraws when the sort finishes
+      }
+    }
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+// Keep drawing for a moment after the camera stops, while the last sort lands.
+export function keepRendering(viewer, ms = 800) {
+  const until = performance.now() + ms;
+  const frame = () => {
+    viewer.forceRenderNextFrame();
+    if (performance.now() < until) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
 export const getHome = () => home && { position: home.position.clone(), target: home.target.clone() };
 
 // Glide to { position, target } (THREE.Vector3s). A new flight replaces the one in progress.
@@ -109,6 +154,7 @@ export function flyTo(viewer, view, { seconds = 1.2, onDone } = {}) {
     if (flight !== f) return;
     flight = null;
     applyLimits(viewer);
+    keepRendering(viewer);
     onDone?.();
   };
   const place = (k) => {

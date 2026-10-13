@@ -22,7 +22,7 @@ These frames were captured by an on-site visitor at: {place}.
 
 Return ONLY a JSON object (no markdown, no preamble) with these keys:
 - "title": short Arabic title for this spot
-- "narration_ar": 80-120 word narration in warm, simple Modern Standard Arabic,
+- "narration_ar": 80-120 word narration in warm, natural Saudi dialect (the everyday Riyadh/Najdi way of speaking that any Arab understands), written in Arabic script,
    describing what the visitor sees and its cultural meaning. Only state what is
    visible or widely known; if unsure about a specific object, describe it generally.
 - "narration_en": English version of the same narration

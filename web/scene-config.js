@@ -1,9 +1,57 @@
 // Shared by index.html (viewer) and film.js (trip film).
-// Tweak these if the scene appears upside down or far away.
-// These values fit the full pavilion (IMG_0920). The rock's are kept in data/rock/scene-config.js.
-// The starting angle can also be saved from index.html?edit ("خذ الزاوية الحالية كبداية").
-// The light copy (scripts/clean_scene.py --splat) loads first when it exists
-export const SCENE_FILES = ['scene.splat', 'scene.ply'];
+// Each pavilion lives in its own folder, web/scenes/<id>/, with:
+//   scene.splat (or scene.ply)  the 3D scan (scripts/clean_scene.py --splat makes the light .splat)
+//   tour.json                   the filmed path and its stops (scripts/camera_path.py)
+//   hotspots.json               the pieces and their explanations (index.html?edit)
+// The page shows one pavilion at a time: index.html?scene=<id>, the first one by default.
+// The first pavilion (IMG_0920 only) is kept in data/hall/site_backup/, the rock in data/rock/.
+export const SCENES = [
+  {
+    id: 'corner',
+    title: 'ركن النقوش',
+    title_en: 'Inscriptions corner',
+    // The last stop of the kingdoms corridor (web/scenes/hall), cut out with scripts/clean_scene.py and placed far
+    // above this scan so the tour goes on into it without loading another page. Its stop in tour.json is moved
+    // by the same offset.
+    extras: [{ file: 'kingdoms.splat', position: [0, 0, 40] }],
+    camera: {
+      cameraUp: [0, 0, 1],                          // gsplat's trainer usually turns "up" into +z
+      initialCameraPosition: [0.3673, -2.3803, 0.1931],
+      initialCameraLookAt: [0.8517, -0.5823, 0.1473],   // the first tour stop
+    },
+  },
+];
+
+// The kingdoms corridor on its own (web/scenes/hall): open it with index.html?scene=hall.
+// Its last stop is part of the corner's tour (see extras above).
+export const OTHER_SCENES = [
+  {
+    id: 'hall',
+    title: 'ممر الممالك',
+    title_en: 'Kingdoms corridor',
+    camera: {
+      cameraUp: [0, 0, 1],
+      initialCameraPosition: [1.4042, -0.4064, -0.0128],
+      initialCameraLookAt: [1.2481, -0.0454, -0.0256],   // the first tour stop: the black stela
+    },
+  },
+];
+
+const wanted = new URLSearchParams(location.search).get('scene');
+export const SCENE = [...SCENES, ...OTHER_SCENES].find((s) => s.id === wanted) || SCENES[0];
+
+// A file of the current pavilion, e.g. sceneUrl('tour.json') -> 'scenes/corner/tour.json'
+export const sceneUrl = (name) => `scenes/${SCENE.id}/${name}`;
+
+// A link to another page (or this one) that keeps the current pavilion
+export function withScene(href, id = SCENE.id) {
+  const url = new URL(href, location.href);
+  url.searchParams.set('scene', id);
+  return url.pathname.split('/').pop() + url.search;
+}
+
+// The light copy loads first when it exists
+export const SCENE_FILES = ['scene.splat', 'scene.ply'].map(sceneUrl);
 
 // First scene file that exists on the server, or null
 export async function findScene() {
@@ -15,16 +63,17 @@ export async function findScene() {
   return null;
 }
 
-export const CAMERA = {
-  cameraUp: [0, 0, 1],                    // gsplat's trainer usually turns "up" into +z
-  initialCameraPosition: [0.13, -1.55, 0.22],
-  initialCameraLookAt: [0.13, 0.8, 0.02],   // the stone wall
-};
+export const CAMERA = SCENE.camera;
 
 // Soft floor under the scan so it doesn't float (scene units; the circle faces cameraUp). null to turn off.
-export const FLOOR = { center: [0.29, 0.27, -0.14], radius: 1.7 };
+// Walking hides it anyway. The first pavilion's was { center: [0.29, 0.27, -0.14], radius: 1.7 }.
+export const FLOOR = SCENE.floor || null;
 
-// How far visitors can turn, tilt and zoom around each resting view (the start, a tour stop, a hotspot),
-// so they look around without drifting into parts the phone never saw. turnDeg can be [one way, other way].
-// The editor (?edit) has no limits. null to turn off.
-export const LIMITS = { turnDeg: 30, tiltDeg: 12, zoomIn: 0.35, zoomOut: 1.25, pan: false };
+// Free walking with the arrow keys along the filmed path (walk.js). Off: visitors go from stop to stop
+// (the arrows switch stops) and only look around a little at each, so the blurry parts stay out of view.
+export const WALK = false;
+
+// How far visitors can turn, tilt and zoom around each resting view (a tour stop, a hotspot), so they look
+// around without drifting into parts the phone never saw. turnDeg can be [one way, other way].
+// Not used while walking. The editor (?edit) has no limits. null to turn off.
+export const LIMITS = { turnDeg: 20, tiltDeg: 8, zoomIn: 0.6, zoomOut: 1.1, pan: false };

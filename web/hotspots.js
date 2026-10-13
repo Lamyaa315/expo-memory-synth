@@ -1,13 +1,15 @@
 // Hotspots: numbered points pinned to objects in the 3D scene.
 // Visitors tap one -> the camera flies to it and a spoken explanation plays.
-// Open index.html?edit to place hotspots by clicking the scene, then download hotspots.json into web/.
+// Open index.html?edit to place hotspots by clicking the scene, then download hotspots.json into the
+// pavilion's folder (web/scenes/<id>/).
 import * as THREE from 'three';
 import { askFor } from './ask.js';
 import * as voice from './voice.js';
 import { flyTo as glide, setHome, getHome } from './stage.js';
+import { SCENE, sceneUrl } from './scene-config.js';
 
-const DATA_URL = 'hotspots.json';
-const DRAFT_KEY = 'ems-hotspots-draft';
+const DATA_URL = sceneUrl('hotspots.json');
+const DRAFT_KEY = `ems-hotspots-draft-${SCENE.id}`;   // one draft per pavilion
 const CLICK_PX = 5, CLICK_MS = 500;
 
 const $ = (id) => document.getElementById(id);
@@ -188,6 +190,7 @@ function select(h, { play = false } = {}) {
   askFor(h);
   $('storyView').hidden = true;
   $('spotView').hidden = false;
+  $('panel').classList.remove('closed', 'collapsed');
   if (play) playAudio();
 }
 
@@ -310,10 +313,10 @@ function setupEditor() {
     const a = Object.assign(document.createElement('a'), { href: url, download: 'hotspots.json' });
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setEdStatus('نزل الملف. حطه في مجلد web بدل hotspots.json القديم.');
+    setEdStatus(`نزل الملف. حطه في مجلد web/scenes/${SCENE.id} بدل hotspots.json القديم.`);
   });
   $('edCopy').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(exportJson()); setEdStatus('نسخت المحتوى. الصقه في web/hotspots.json.'); }
+    try { await navigator.clipboard.writeText(exportJson()); setEdStatus(`نسخت المحتوى. الصقه في web/scenes/${SCENE.id}/hotspots.json.`); }
     catch { setEdStatus('ما قدرت أنسخ. استخدم زر التنزيل.'); }
   });
   $('edDiscard').addEventListener('click', async () => {
@@ -342,7 +345,7 @@ function snapshot(canvas, max = 1024) {
   return out.toDataURL('image/jpeg', 0.85);
 }
 
-function captureView() {
+export function captureView() {
   return new Promise((resolve, reject) => {
     captureRequest = resolve;
     viewer.forceRenderNextFrame();
@@ -401,7 +404,7 @@ async function setupAutoDescribe() {
       const res = await fetch('/api/describe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: spot.id, image, label_image: labelImage, notes: spot.facts || '' }),
+        body: JSON.stringify({ scene: SCENE.id, id: spot.id, image, label_image: labelImage, notes: spot.facts || '' }),
       });
       if (!res.ok) throw new Error(res.status);
       const r = await res.json();

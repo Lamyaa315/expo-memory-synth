@@ -4,8 +4,10 @@
 // Everything runs in the browser: photos never leave the device.
 import * as THREE from 'three';
 import * as GS from '@mkkellogg/gaussian-splats-3d';
-import { findScene, CAMERA } from './scene-config.js';
-import { makeFloorScene } from './stage.js';
+import { findScene, CAMERA, sceneUrl, withScene } from './scene-config.js';
+import { makeFloorScene, hideFloor } from './stage.js';
+
+document.querySelector('a.back')?.setAttribute('href', withScene('index.html'));   // back to the same pavilion
 
 // ---------- Film settings ----------
 const W = 720, H = 1280;                                    // vertical 9:16, fits phones and stories
@@ -65,7 +67,7 @@ const target = new THREE.Vector3(...CAMERA.initialCameraLookAt);
 const up = new THREE.Vector3(...CAMERA.cameraUp).normalize();
 const baseOffset = new THREE.Vector3(...CAMERA.initialCameraPosition).sub(target);
 // Orbit around the starting angle saved in the editor, when there is one
-fetch('hotspots.json', { cache: 'no-cache' }).then((r) => r.json()).then(({ start }) => {
+fetch(sceneUrl('hotspots.json'), { cache: 'no-cache' }).then((r) => r.json()).then(({ start }) => {
   if (!start) return;
   target.fromArray(start.target);
   baseOffset.fromArray(start.position).sub(target);
@@ -75,7 +77,7 @@ const offset = new THREE.Vector3();
 // With a corridor tour (tour.json), the opening walks the first stops of the filmed path instead of
 // orbiting: the scan is only sharp near where it was filmed.
 let walk = null;
-fetch('tour.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((tour) => {
+fetch(sceneUrl('tour.json'), { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((tour) => {
   if (!tour?.stops?.length || tour.stops.length < 2) return;
   walk = { fov: tour.fov, stops: tour.stops.slice(0, 4).map((s) => ({
     position: new THREE.Vector3(...s.position), target: new THREE.Vector3(...s.target) })) };
@@ -97,6 +99,7 @@ function placeOnWalk(cam, t) {
 function drawScene(t) {
   const cam = viewer.camera;
   if (walk) {
+    hideFloor(viewer);   // walking inside the scan: the real floor is there
     placeOnWalk(cam, t);
   } else {
     // Slow orbit around the look-at point while dollying in

@@ -155,6 +155,8 @@ def main():
     p.add_argument("--stops", type=int, default=16, help="How many stops along the path")
     p.add_argument("--video", help="Folder of the walk to follow, e.g. v1 (default: the one with most frames)")
     p.add_argument("--out", default="web/tour.json")
+    p.add_argument("--keep-stops", action="store_true",
+                   help="Keep the stops already in --out (e.g. after removing blurry ones) and only refresh the path")
     args = p.parse_args()
 
     sparse = Path(args.sparse)
@@ -210,7 +212,11 @@ def main():
                       "position": [round(float(v), 4) for v in f["pos"]],
                       "target": [round(float(v), 4) for v in target]})
 
-    out = {"up": [round(float(v), 4) for v in scene_up], "fov": round(vfov, 1), "stops": stops}
+    if args.keep_stops and Path(args.out).exists():
+        stops = json.loads(Path(args.out).read_text(encoding="utf-8")).get("stops", stops)
+    # The whole walk, for free walking with the arrow keys: visitors stay close to where it was filmed
+    path = [[round(float(v), 4) for v in f["pos"]] for f in walk]
+    out = {"up": [round(float(v), 4) for v in scene_up], "fov": round(vfov, 1), "stops": stops, "path": path}
     Path(args.out).write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
 
     print(f"{len(images)} frames placed; walks: " + ", ".join(f"{k or 'main'} ({len(v)})" for k, v in sorted(walks.items())))
