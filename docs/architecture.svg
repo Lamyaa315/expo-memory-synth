@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" direction="rtl">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;600&amp;family=Reem+Kufi:wght@700&amp;display=swap');
+      text { font-family: "Readex Pro", "Segoe UI", Tahoma, sans-serif; fill: #1D2440; }
+      .title { font-family: "Reem Kufi", "Readex Pro", "Segoe UI", sans-serif; font-size: 46px; font-weight: 700; }
+      .sub { font-size: 22px; fill: #545B78; }
+      .h { font-size: 30px; font-weight: 600; }
+      .li { font-size: 21px; }
+      .tag { font-size: 18px; font-weight: 600; fill: #2F7F86; }
+      .arrow-label { font-size: 19px; fill: #1D2440; }
+      .small { font-size: 18px; fill: #545B78; }
+    </style>
+    <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2F7F86"/>
+    </marker>
+    <marker id="headGold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#B9831F"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="#EEECE5"/>
+
+  <!-- Title -->
+  <text x="1540" y="88" text-anchor="start" class="title">كيف يشتغل سعد؟</text>
+  <text x="1540" y="130" text-anchor="start" class="sub">Expo Memory Synth · المسار من سؤال الزائر لين يسمع جواب سعد</text>
+
+  <!-- 1. The visitor (right) -->
+  <rect x="1090" y="180" width="450" height="440" rx="18" fill="#FFFFFF" stroke="#C9C4B5" stroke-width="2"/>
+  <text x="1510" y="218" text-anchor="start" class="tag">١ · جهاز الزائر</text>
+  <text x="1510" y="262" text-anchor="start" class="h">المتصفح</text>
+  <text x="1510" y="312" text-anchor="start" class="li">• المتحف ثلاثي الأبعاد (٩ محطات)</text>
+  <text x="1510" y="352" text-anchor="start" class="li">• سعد: الشكل، والشات، والصوت</text>
+  <text x="1510" y="392" text-anchor="start" class="li">• الجولة التلقائية</text>
+  <text x="1510" y="432" text-anchor="start" class="li">• قطع مشابهة من حضارات ثانية</text>
+  <text x="1510" y="472" text-anchor="start" class="li">• يختار لغته من ٣١ لغة</text>
+  <rect x="1120" y="512" width="390" height="80" rx="12" fill="#E2DED2"/>
+  <text x="1490" y="545" text-anchor="start" class="small">ما يحتاج تطبيق ولا حساب،</text>
+  <text x="1490" y="575" text-anchor="start" class="small">يفتح من رابط</text>
+
+  <!-- 2. Our server (middle) -->
+  <rect x="575" y="180" width="450" height="440" rx="18" fill="#2F7F86"/>
+  <text x="995" y="218" text-anchor="start" class="tag" style="fill:#F3E2BC">٢ · السيرفر حقنا</text>
+  <text x="995" y="262" text-anchor="start" class="h" style="fill:#FFFFFF">هنا ينصنع سعد</text>
+  <text x="995" y="312" text-anchor="start" class="li" style="fill:#FFFFFF">• شخصيته: مرشد سعودي، يتكلم نجدي</text>
+  <text x="995" y="352" text-anchor="start" class="li" style="fill:#FFFFFF">• قاعدته: ما يخترع، وإذا ما يعرف يقول</text>
+  <text x="995" y="392" text-anchor="start" class="li" style="fill:#FFFFFF">• معلومات المتحف عن القطع</text>
+  <text x="995" y="432" text-anchor="start" class="li" style="fill:#FFFFFF">• ذاكرة المحادثة</text>
+  <text x="995" y="472" text-anchor="start" class="li" style="fill:#FFFFFF">• يحفظ الترجمات والأصوات</text>
+  <rect x="605" y="512" width="390" height="80" rx="12" fill="#246970"/>
+  <text x="975" y="545" text-anchor="start" class="small" style="fill:#E6E3DA">مفتاح Gemini هنا بس،</text>
+  <text x="975" y="575" text-anchor="start" class="small" style="fill:#E6E3DA">ما يوصل للزائر أبد</text>
+
+  <!-- 3. Gemini (left) -->
+  <rect x="60" y="180" width="450" height="440" rx="18" fill="#FFFFFF" stroke="#C9C4B5" stroke-width="2"/>
+  <text x="480" y="218" text-anchor="start" class="tag">٣ · Google Gemini</text>
+  <text x="480" y="262" text-anchor="start" class="h">المحرّك</text>
+  <rect x="90" y="292" width="390" height="120" rx="12" fill="#E2DED2"/>
+  <text x="460" y="334" text-anchor="start" class="li" style="font-weight:600">العقل</text>
+  <text x="460" y="372" text-anchor="start" class="li">يفهم السؤال والصورة، ويكتب الجواب</text>
+  <rect x="90" y="428" width="390" height="120" rx="12" fill="#E2DED2"/>
+  <text x="460" y="470" text-anchor="start" class="li" style="font-weight:600">الصوت</text>
+  <text x="460" y="508" text-anchor="start" class="li">يحوّل الجواب لصوت سعد</text>
+  <text x="480" y="588" text-anchor="start" class="small">إذا موديل علّق، ينتقل للي بعده</text>
+
+  <!-- Arrows: question goes left, answer comes back right -->
+  <line x1="1085" y1="330" x2="1032" y2="330" stroke="#2F7F86" stroke-width="5" marker-end="url(#head)"/>
+  <line x1="570" y1="330" x2="517" y2="330" stroke="#2F7F86" stroke-width="5" marker-end="url(#head)"/>
+  <line x1="517" y1="470" x2="570" y2="470" stroke="#B9831F" stroke-width="5" marker-end="url(#headGold)"/>
+  <line x1="1032" y1="470" x2="1085" y2="470" stroke="#B9831F" stroke-width="5" marker-end="url(#headGold)"/>
+
+  <!-- Flow legend under the boxes -->
+  <rect x="60" y="660" width="1480" height="190" rx="18" fill="#FFFFFF" stroke="#C9C4B5" stroke-width="2"/>
+  <line x1="1490" y1="712" x2="1440" y2="712" stroke="#2F7F86" stroke-width="5" marker-end="url(#head)"/>
+  <text x="1420" y="719" text-anchor="start" class="arrow-label"><tspan font-weight="600">الطلب:</tspan> سؤال الزائر + صورة من اللي قدامه + لغته، والسيرفر يضيف شخصية سعد ومعلومات المتحف</text>
+  <line x1="1440" y1="767" x2="1490" y2="767" stroke="#B9831F" stroke-width="5" marker-end="url(#headGold)"/>
+  <text x="1420" y="774" text-anchor="start" class="arrow-label"><tspan font-weight="600">الرد:</tspan> جواب سعد مكتوب، وبصوته إذا الزائر مختار الصوت</text>
+  <text x="1490" y="826" text-anchor="start" class="small">لو بدّلنا Gemini بموديل ثاني، سعد يبقى نفسه: شخصيته وقواعده ومعلوماته كلها عندنا.</text>
+</svg>
