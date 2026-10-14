@@ -65,6 +65,19 @@
   .tools button:disabled { opacity: .3; cursor: default; background: transparent; }
   .tools button:focus-visible { outline: 2px solid var(--saffron); }
 
+  .extra { margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+  .extra h2 { font-size: 1.05rem; margin: 1rem 0 .35rem; }
+  .extra h2:first-child { margin-top: 0; }
+  .hint { font-size: .85rem; color: var(--ink-soft); margin: 0 0 .5rem; line-height: 1.6; }
+  .check { display: flex; gap: .55rem; align-items: flex-start; font-size: .85rem; line-height: 1.6; margin: .5rem 0; cursor: pointer; }
+  .check input { margin-top: .3rem; width: 1.05rem; height: 1.05rem; accent-color: var(--teal); flex: none; }
+  textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: .95rem; line-height: 1.7; padding: .7rem .8rem;
+    border: 1px solid var(--line); border-radius: 10px; background: #F4F2EC; color: var(--ink); resize: vertical; }
+  textarea:focus { outline: 3px solid var(--saffron); outline-offset: 1px; }
+  .sample { margin: .5rem 0; padding: .7rem .9rem; border-inline-start: 4px solid var(--saffron); background: #F4F2EC;
+    border-radius: 8px; font-size: .95rem; line-height: 1.8; }
+  #voicePreview { width: 100%; margin-top: .5rem; }
+  #recBtn.on { background: var(--danger); color: #fff; border-color: var(--danger); }
   .actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1.1rem; }
   button.primary, button.ghost, a.ghost {
     font: inherit; font-size: .95rem; border-radius: 10px; padding: .7rem 1.1rem; cursor: pointer; text-decoration: none;
@@ -114,7 +127,7 @@
   <section class="card" id="setup">
     <h1>فيلم رحلتك</h1>
     <p class="lead">اختر صور من زيارتك، ونسوي لك فيلم قصير يبدأ بجولة داخل المكان. احفظه عندك أو أرسله لأهلك وأصحابك اللي ما قدروا يجون.</p>
-    <p class="privacy"><i></i><span>صورك تبقى في جهازك. الفيلم ينصنع داخل المتصفح، وما ترتفع أي صورة لأي مكان.</span></p>
+    <p class="privacy"><i></i><span>الفيلم ينصنع داخل متصفحك. صورك وصوتك ما يطلعون من جهازك إلا إذا وافقت على القصة الذكية أو الصوت تحت.</span></p>
 
     <label class="field" for="nameInput">اسمك</label>
     <input type="text" id="nameInput" placeholder="مثلاً: لمياء" maxlength="30" autocomplete="given-name">
@@ -129,6 +142,36 @@
     <p class="count" id="count">حتى 12 صورة. تقدر تكتب سطر قصير عن كل صورة.</p>
 
     <ul class="photos" id="photos"></ul>
+    <label class="check"><input type="checkbox" id="depthToggle" checked>
+      <span>✨ حركة 3D للصور: الذكاء الاصطناعي يقدّر عمق كل صورة، فتتحرك كأنها مشهد حي (داخل جهازك).</span></label>
+    <p class="hint" id="depthStatus"></p>
+
+    <!-- The generated parts: a story written from the photos, read in the visitor's own voice (film-story.js) -->
+    <section class="extra" id="storyBox" hidden>
+      <h2>✨ قصة رحلتك</h2>
+      <p class="hint">الذكاء الاصطناعي يشوف صورك ويكتب قصة الرحلة بلسانك، كأنك تحكيها لصاحبك. تقدر تعدلها بعدين.</p>
+      <label class="check"><input type="checkbox" id="storyConsent">
+        <span>أوافق إن صوري تنرسل لـ Gemini (من Google) عشان يكتب القصة. ما تنحفظ عندنا.</span></label>
+      <div class="actions"><button class="ghost" id="storyBtn" disabled>✨ اكتب قصتي</button></div>
+      <p class="status" id="storyStatus"></p>
+      <label class="field" for="storyText">القصة</label>
+      <textarea id="storyText" rows="5" maxlength="1500" placeholder="اكتب قصتك هنا، أو خلّ الذكاء الاصطناعي يكتبها."></textarea>
+
+      <div id="voiceBox">
+        <h2>🎙 احكيها بصوتك</h2>
+        <p class="hint">سجّل 15 ثانية وأنت تقرأ الجملة اللي تحت، والذكاء الاصطناعي يحكي القصة كلها بصوتك.</p>
+        <blockquote class="sample" id="sampleLine">هلا، هذا صوتي. اليوم زرت المتحف الوطني في الرياض، وشفت نقوش قديمة عمرها مئات السنين، وكانت تجربة حلوة ودي أحكيكم عنها بالتفصيل.</blockquote>
+        <label class="check"><input type="checkbox" id="voiceConsent">
+          <span>أوافق إن صوتي يُستخدم لصنع هذا الفيلم بس. العينة تنعالج على جهاز السيرفر وتنحذف على طول، وما تنحفظ ولا تنستخدم لشي ثاني.</span></label>
+        <div class="actions">
+          <button class="ghost" id="recBtn" disabled>● سجّل صوتي (15 ثانية)</button>
+          <button class="ghost" id="cloneBtn" disabled>ولّد القصة بصوتي</button>
+        </div>
+        <p class="status" id="voiceStatus"></p>
+        <audio id="voicePreview" controls hidden></audio>
+      </div>
+      <p class="hint" id="voiceOff" hidden>الصوت بصوتك مو شغال الحين (شغّل scripts/voice_clone.py على السيرفر).</p>
+    </section>
 
     <div class="actions">
       <button class="primary" id="makeBtn" disabled>سوّ الفيلم</button>

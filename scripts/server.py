@@ -11,7 +11,14 @@ Serves web/ like `python -m http.server`, plus:
     POST /api/guide     -> {"answer": "..."}   the tour guide: questions about whatever the visitor is looking at
          body: {"scene": "corner", "scene_title": "...", "image": "data:image/jpeg;base64,...", "question": "...",
                 "lang": "ar", "history": [...]}   (uses the view, labels visible in it, and the pavilion's hotspots)
-    POST /api/tts       -> audio/wav|mpeg  body: {"text": "..."}   (Gemini voices, edge-tts as backup: see tts.py)
+    POST /api/film/story -> {"title", "story", "captions": [...]}   the trip film: the model looks at the visitor's
+         photos and writes a short story in the first person (only with the visitor's consent)
+         body: {"photos": ["data:image/jpeg;base64,...", ...], "place": "...", "name": "...", "lang": "ar", "consent": true}
+    POST /api/film/voice -> audio/wav   the story read in the visitor's own voice (scripts/voice_clone.py, XTTS-v2)
+         body: {"text": "...", "sample": "<base64 WAV>", "lang": "ar", "consent": true}
+    POST /api/tour/say  -> {"say": ["...", ...]}   what the guide says at each tour stop (web/scenes/<id>/story.json),
+         in the visitor's language. body: {"scene": "corner", "lang": "fr"}   (kept in memory once translated)
+    POST /api/tts       -> audio/wav|mpeg  body: {"text": "...", "lang": "fr"}   (Gemini voices, edge-tts as backup: see tts.py)
 
 Keys stay here on the server, never in the page. Put ONE of these in a .env file at the repo root:
     GEMINI_API_KEY=...        Google Gemini, free tier (key from https://aistudio.google.com/apikey); also the voice
@@ -26,9 +33,11 @@ Run:
 """
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -47,6 +56,8 @@ MAX_BODY = 32_000
 MAX_DESCRIBE_BODY = 12_000_000
 MAX_TTS_TEXT = 1500
 MAX_ANSWER_TOKENS = 500
+MAX_FILM_PHOTOS = 12
+CLONE_URL = os.getenv("VOICE_CLONE_URL", "http://127.0.0.1:8765")   # scripts/voice_clone.py
 SPOT_ID = re.compile(r"^h\d{1,4}$")
 SCENE_ID = re.compile(r"^[a-z0-9_-]{1,32}$")
 
@@ -93,6 +104,27 @@ Rules:
 - If the question is not about the museum, answer briefly and gently bring the visitor back to the pieces.
 """
 
+TOUR_SAY = """Translate what a friendly Saudi museum guide says at each stop of a tour into {language}.
+Keep it warm, spoken and short, like he is talking to the visitor; keep names of places and civilizations.
+Return ONLY a JSON array of strings, one per line below, same order and count.
+
+{lines}
+"""
+
+FILM_STORY = """You help a visitor turn the photos of their visit into a short film they will keep as a memory.
+The images are their photos, in the order they chose. Visit: {place}. The visitor's name: {name}.
+
+Write the film's narration as the visitor, in the first person ("زرت…"، "وقفت قدام…"), as if they are telling a
+friend about the day: warm, personal, a little poetic, and short enough to read aloud in about {seconds} seconds.
+Follow the photos in order. Describe only what you can see and what the visitor plausibly felt; do not invent
+names, dates, people or facts about the objects.
+
+Return ONLY a JSON object (no markdown) with these keys:
+- "title": a short film title (2-5 words)
+- "story": the narration ({words} words at most), in {language}
+- "captions": one short line per photo (3-7 words each), same order and count as the photos, in {language}
+"""
+
 DESCRIBE = """You are writing the spoken guide for ONE piece in a museum in Riyadh, for visitors who cannot travel there.
 The first image is a view of the piece from its 3D scan.{label_note}
 
@@ -116,6 +148,32 @@ Return ONLY a JSON object (no markdown, no preamble) with these keys:
 - "text_en": the same narration in English
 - "label_text": the text you can read on the museum label image, or "" if there is none
 """
+
+
+# The languages the page offers (web/languages.js): the main languages of the countries taking part in Expo 2030
+LANGUAGES = {
+    "ar": "warm, natural Saudi dialect (the everyday Riyadh/Najdi way of speaking that any Arab understands), written in Arabic script",
+    "en": "English", "fr": "French", "es": "Spanish", "pt": "Portuguese", "de": "German", "it": "Italian",
+    "nl": "Dutch", "ru": "Russian", "uk": "Ukrainian", "pl": "Polish", "el": "Greek", "sv": "Swedish",
+    "tr": "Turkish", "fa": "Persian (Farsi)", "ur": "Urdu", "hi": "Hindi", "bn": "Bengali",
+    "zh": "Simplified Chinese", "ja": "Japanese", "ko": "Korean", "id": "Indonesian", "ms": "Malay", "th": "Thai",
+    "vi": "Vietnamese", "fil": "Filipino (Tagalog)", "sw": "Swahili", "am": "Amharic", "so": "Somali",
+    "uz": "Uzbek", "kk": "Kazakh",
+}
+
+
+TOUR_CACHE = Path(tempfile.gettempdir()) / "expo-memory-synth-tour"   # <hash>.json: the tour's lines in one language
+
+
+def pick_lang(body):
+    lang = str(body.get("lang", ""))
+    return lang if lang in LANGUAGES else "ar"
+
+
+def language_name(lang):
+    if lang == "ar":
+        return LANGUAGES["ar"]
+    return f"{LANGUAGES[lang]} (the visitor chose this language: answer only in it, keep names of places in it too)"
 
 
 def load_env():
@@ -192,6 +250,15 @@ def clean_history(history):
     return out
 
 
+def clone_ready():
+    """True when scripts/voice_clone.py is running and its model has loaded."""
+    try:
+        with urllib.request.urlopen(f"{CLONE_URL}/health", timeout=0.5) as res:
+            return json.loads(res.read()).get("ready") is True
+    except (OSError, ValueError):
+        return False
+
+
 def parse_json_reply(text):
     text = text.replace("```json", "").replace("```", "").strip()
     start, end = text.find("{"), text.rfind("}")
@@ -246,6 +313,9 @@ class Gemini:
     def __init__(self):
         # "latest" follows Google's newest Flash model; set GEMINI_MODEL in .env to pin one
         self.model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+        # When that one is busy (it happens), these answer instead
+        self.fallbacks = [m.strip() for m in os.getenv(
+            "GEMINI_FALLBACK_MODELS", "gemini-3.8-flash,gemini-3.5-flash,gemini-flash-lite-latest").split(",")]
         self.name = f"Gemini {self.model}"
 
     def ask(self, system, messages, images=(), max_tokens=MAX_ANSWER_TOKENS):
@@ -257,7 +327,7 @@ class Gemini:
             "system_instruction": {"parts": [{"text": system}]},
             "contents": contents,
             "generationConfig": {"maxOutputTokens": max_tokens + 2000},
-        })
+        }, fallbacks=self.fallbacks)
         return gemini_client.text_of(res)
 
 
@@ -335,16 +405,19 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?")[0] == "/api/health":
             on = self.provider is not None
-            return self.send_json(200, {"ask": on, "describe": on, "guide": on, "tts": self.tts})
+            return self.send_json(200, {"ask": on, "describe": on, "guide": on, "tts": self.tts,
+                                        "film_story": on, "clone": clone_ready()})
         return super().do_GET()
 
     def do_POST(self):
         route = {"/api/ask": self.ask, "/api/describe": self.describe, "/api/guide": self.guide,
-                 "/api/tts": self.speak}.get(self.path.split("?")[0])
+                 "/api/film/story": self.film_story, "/api/film/voice": self.film_voice,
+                 "/api/tour/say": self.tour_say, "/api/tts": self.speak}.get(self.path.split("?")[0])
         if route is None:
             return self.send_json(404, {"error": "not found"})
         try:
-            body = self.read_body(MAX_DESCRIBE_BODY if route in (self.describe, self.guide) else MAX_BODY)   # these carry pictures
+            big = route in (self.describe, self.guide, self.film_story, self.film_voice)   # pictures or a voice sample
+            body = self.read_body(MAX_DESCRIBE_BODY if big else MAX_BODY)
         except OverflowError:
             return self.send_json(413, {"error": "too_large"})
         except (ValueError, json.JSONDecodeError):
@@ -366,7 +439,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.provider is None:
             return self.send_json(503, {"error": "no_key"})
         question = str(body.get("question", "")).strip()[:MAX_QUESTION]
-        lang = "en" if body.get("lang") == "en" else "ar"
+        lang = pick_lang(body)
         folder = scene_dir(body)
         spot = find_hotspot(folder, str(body.get("id", "")))
         if not question or spot is None:
@@ -376,7 +449,7 @@ class Handler(SimpleHTTPRequestHandler):
         system = SYSTEM.format(
             piece=piece_info(spot),
             photo_note="A photo of the piece is attached to the first message.\n" if photo else "",
-            language="English" if lang == "en" else "warm, natural Saudi dialect (the everyday Riyadh/Najdi way of speaking that any Arab understands), written in Arabic script",
+            language=language_name(lang),
         )
         messages = clean_history(body.get("history")) + [{"role": "user", "content": question}]
         answer = self.provider.ask(system, messages, [photo] if photo else []).strip()
@@ -391,7 +464,7 @@ class Handler(SimpleHTTPRequestHandler):
         view = parse_data_url(body.get("image"))   # may be missing: then he answers from the notes only
         if not question:
             return self.send_json(400, {"error": "missing_question"})
-        lang = "en" if body.get("lang") == "en" else "ar"
+        lang = pick_lang(body)
         folder = scene_dir(body)
         try:
             spots = json.loads((folder / "hotspots.json").read_text(encoding="utf-8")).get("hotspots", [])
@@ -407,13 +480,90 @@ class Handler(SimpleHTTPRequestHandler):
         system = GUIDE.format(
             scene_title=re.sub(r"[\r\n<>]", " ", str(body.get("scene_title", "")))[:80] or "the pavilion",
             pieces=pieces or "(nothing written yet)",
-            language="English" if lang == "en" else "warm, natural Saudi dialect (the everyday Riyadh/Najdi way of speaking that any Arab understands), written in Arabic script",
+            language=language_name(lang),
         )
         messages = clean_history(body.get("history")) + [{"role": "user", "content": question}]
         answer = self.provider.ask(system, messages, [view] if view else []).strip()
         if not answer:
             return self.send_json(502, {"error": "empty"})
         return self.send_json(200, {"answer": answer})
+
+    def tour_say(self, body):
+        if self.provider is None:
+            return self.send_json(503, {"error": "no_key"})
+        lang = pick_lang(body)
+        folder = scene_dir(body)
+        try:
+            stops = json.loads((folder / "story.json").read_text(encoding="utf-8")).get("stops", [])
+        except (OSError, ValueError, AttributeError):
+            stops = []
+        lines = [str(s.get("say", "")).strip() for s in stops]
+        if lang == "ar" or not any(lines):
+            return self.send_json(200, {"say": lines})
+        cached = TOUR_CACHE / (hashlib.sha1(f"{lang}|{'|'.join(lines)}".encode("utf-8")).hexdigest() + ".json")
+        if cached.exists():
+            return self.send_json(200, {"say": json.loads(cached.read_text(encoding="utf-8"))})
+        prompt = TOUR_SAY.format(language=LANGUAGES[lang], lines="\n".join(f"{i + 1}. {t}" for i, t in enumerate(lines)))
+        reply = self.provider.ask("You translate museum audio guides.", [{"role": "user", "content": prompt}],
+                                  max_tokens=3000)
+        m = re.search(r"\[.*\]", reply, re.S)
+        said = json.loads(m.group(0)) if m else []
+        if len(said) != len(lines):
+            return self.send_json(502, {"error": "bad_translation"})
+        said = [str(t).strip()[:MAX_TTS_TEXT] for t in said]
+        TOUR_CACHE.mkdir(exist_ok=True)
+        cached.write_text(json.dumps(said, ensure_ascii=False), encoding="utf-8")
+        return self.send_json(200, {"say": said})
+
+    def film_story(self, body):
+        if self.provider is None:
+            return self.send_json(503, {"error": "no_key"})
+        if body.get("consent") is not True:   # the photos only go to the model if the visitor agreed
+            return self.send_json(403, {"error": "no_consent"})
+        photos = [v for v in (parse_data_url(u) for u in (body.get("photos") or [])[:MAX_FILM_PHOTOS]) if v]
+        if not photos:
+            return self.send_json(400, {"error": "missing_photos"})
+        lang = pick_lang(body)
+        clean = lambda v, n: re.sub(r"[\r\n<>]", " ", str(v or "")).strip()[:n]
+        seconds = min(25, 8 + 3 * len(photos))   # short: the visitor's voice takes ~7x its length to make on a laptop
+        prompt = FILM_STORY.format(
+            place=clean(body.get("place"), 80) or "a museum in Riyadh", name=clean(body.get("name"), 30) or "(not given)",
+            seconds=seconds, words=int(seconds * 2.2),
+            language=language_name(lang))
+        reply = self.provider.ask("You write short, warm travel-memory films.", [{"role": "user", "content": prompt}],
+                                  photos, max_tokens=1500)
+        try:
+            result = parse_json_reply(reply)
+        except ValueError:
+            result = {"story": reply.strip()}
+        captions = [str(c).strip()[:80] for c in (result.get("captions") or [])][:len(photos)]
+        return self.send_json(200, {"title": str(result.get("title", "")).strip()[:60],
+                                    "story": str(result.get("story", "")).strip()[:MAX_TTS_TEXT],
+                                    "captions": captions})
+
+    def film_voice(self, body):
+        if body.get("consent") is not True:   # the visitor's voice is only used if they agreed
+            return self.send_json(403, {"error": "no_consent"})
+        text = str(body.get("text", "")).strip()[:MAX_TTS_TEXT]
+        sample = str(body.get("sample", ""))
+        if not text or not sample:
+            return self.send_json(400, {"error": "missing_text_or_sample"})
+        payload = json.dumps({"text": text, "sample": sample,
+                              "lang": pick_lang(body)}).encode()
+        req = urllib.request.Request(f"{CLONE_URL}/clone", data=payload, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=600) as res:   # a minute or two on a laptop CPU
+                audio = res.read()
+        except urllib.error.HTTPError as e:
+            return self.send_json(502 if e.code >= 500 else e.code, {"error": "clone_failed"})
+        except (urllib.error.URLError, OSError):
+            return self.send_json(503, {"error": "clone_offline"})
+        self.send_response(200)
+        self.send_header("Content-Type", "audio/wav")
+        self.send_header("Content-Length", str(len(audio)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(audio)
 
     def describe(self, body):
         if self.provider is None:
@@ -449,7 +599,7 @@ class Handler(SimpleHTTPRequestHandler):
         text = str(body.get("text", "")).strip()[:MAX_TTS_TEXT]
         if not text:
             return self.send_json(400, {"error": "missing_text"})
-        audio, mime, _ = tts.synthesize(text)
+        audio, mime, _ = tts.synthesize(text, lang=pick_lang(body))
         self.send_response(200)
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(audio)))

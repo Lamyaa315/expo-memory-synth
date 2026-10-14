@@ -30,35 +30,50 @@ def _connect():
     return http.client.HTTPSConnection(HOST, timeout=120, context=ssl.create_default_context())
 
 
-def generate(model, payload, key=None):
-    """POST models/<model>:generateContent and return the parsed JSON reply."""
+def generate(model, payload, key=None, fallbacks=()):
+    """POST models/<model>:generateContent and return the parsed JSON reply.
+    When a model is busy (503) or over its limit (429), the next one in `fallbacks` answers instead of waiting."""
     global _conn
     key = key or os.environ["GEMINI_API_KEY"]
     body = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json", "x-goog-api-key": key}
+    models = [model, *[m for m in fallbacks if m and m != model]]
     last = None
     with _lock:   # one request at a time over the shared connection
-        for attempt in range(TRIES):
-            try:
-                if _conn is None:
-                    _conn = _connect()
-                _conn.request("POST", f"/v1beta/models/{model}:generateContent", body, headers)
-                res = _conn.getresponse()
-                data = res.read().decode("utf-8")
-            except (OSError, http.client.HTTPException) as e:   # dropped or reset: open a new one and retry
-                last = e
-                if _conn is not None:
-                    _conn.close()
-                _conn = None
-                time.sleep(min(1 + attempt, 4))
-                continue
-            if res.status == 200:
-                return json.loads(data)
-            if res.status in (429, 500, 503) and attempt < TRIES - 1:
+        for i, name in enumerate(models):
+            busy = 0
+            for attempt in range(TRIES):
+                try:
+                    if _conn is None:
+                        _conn = _connect()
+                    _conn.request("POST", f"/v1beta/models/{name}:generateContent", body, headers)
+                    res = _conn.getresponse()
+                    data = res.read().decode("utf-8")
+                except (OSError, http.client.HTTPException) as e:   # dropped or reset: open a new one and retry
+                    last = e
+                    if _conn is not None:
+                        _conn.close()
+                    _conn = None
+                    time.sleep(min(1 + attempt, 4))
+                    continue
+                if res.status == 200:
+                    return json.loads(data)
+                if res.status in (429, 500, 503):
+                    last = GeminiError(res.status, data)
+                    busy += 1
+                    has_next = i < len(models) - 1
+                    if "PerDay" in data:                # used up for today: waiting won't help
+                        if has_next:
+                            break
+                        raise last
+                    if busy >= (2 if has_next else 4):
+                        break                       # try the next model rather than keep waiting
+                    time.sleep(2 if has_next else 3 + 2 * attempt)
+                    continue
                 last = GeminiError(res.status, data)
-                time.sleep(3 + 2 * attempt)    # busy or rate-limited: wait a little longer
-                continue
-            raise GeminiError(res.status, data)
+                if res.status in (400, 403, 404) and i < len(models) - 1:
+                    break                           # this model can't take the request: try the next one
+                raise last
     raise last or RuntimeError("Gemini request failed")
 
 

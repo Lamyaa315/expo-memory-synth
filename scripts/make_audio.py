@@ -93,12 +93,14 @@ def story_audio(args):
         if stop.get("audio") and (web / stop["audio"]).exists() and not args.force:
             continue
         try:
-            audio, _, ext = tts.synthesize(text, wait=True)
+            audio, _, ext = tts.synthesize(text, wait=True, only=["gemini"])   # one voice for the whole tour
         except Exception as e:
             print(f"  stop {i + 1}: no clip ({str(e)[:120]})")
             stop.pop("audio", None)
             continue
         out = out_dir / f"stop_{i + 1:02d}{ext}"
+        for old in out_dir.glob(f"stop_{i + 1:02d}.*"):
+            old.unlink()   # an older clip, maybe in another format
         out.write_bytes(audio)
         stop["audio"] = out.resolve().relative_to(web.resolve()).as_posix()
         made += 1

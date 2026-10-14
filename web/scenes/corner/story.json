@@ -5,14 +5,20 @@
    "say": "هلا والله فيك في ركن النقوش! قدامك شواهد حجرية منقوشة بالخط العربي، وكل واحد منها يحكي قصة شخص عاش قبل أكثر من ألف سنة.",
    "links": [
     {
-     "wiki": "Stele",
-     "title": "الشواهد الحجرية حول العالم",
-     "why": "فكرة الحجر الواقف المكتوب عليه للتخليد موجودة في حضارات كثيرة."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6a/Tombstone_of_a_woman_with_an_Arabic_inscription_in_the_Kufic_script%2C_sandstone_-_Museo_Egizio_%28Turin%29_P_4822_p01.jpg/330px-Tombstone_of_a_woman_with_an_Arabic_inscription_in_the_Kufic_script%2C_sandstone_-_Museo_Egizio_%28Turin%29_P_4822_p01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Tombstone_of_a_woman_with_an_Arabic_inscription_in_the_Kufic_script,_sandstone_-_Museo_Egizio_(Turin)_P_4822_p01.jpg",
+     "title": "شاهد قبر بالخط الكوفي، مصر",
+     "why": "نفس الفكرة والخط: اسم المتوفى ودعاء محفور على حجر رملي.",
+     "title_en": "Kufic tombstone, Egypt",
+     "why_en": "Same idea and script: a name and a prayer carved in sandstone."
     },
     {
-     "wiki": "Rosetta_Stone",
-     "title": "حجر رشيد، مصر",
-     "why": "حجر منقوش بثلاث كتابات، ومنه فهموا الهيروغليفية."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7d/Stele_Almeria_Gao-Saney_MNM_R88-19-279_%28cropped%29.jpg/330px-Stele_Almeria_Gao-Saney_MNM_R88-19-279_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Stele_Almeria_Gao-Saney_MNM_R88-19-279_(cropped).jpg",
+     "title": "شاهد من ألمرية، وجدوه في مالي",
+     "why": "رخام منقوش بالكوفي في الأندلس، وانشحن لملوك غاو في أفريقيا.",
+     "title_en": "Almería stele found in Gao, Mali",
+     "why_en": "Kufic marble carved in Al-Andalus and shipped to the kings of Gao."
     }
    ],
    "audio": "scenes/corner/audio/story/stop_01.wav"
@@ -21,41 +27,64 @@
    "say": "شوف هالحجر عن قرب، النقوش محفورة بالأزميل حرف حرف، وأغلبها بالخط الكوفي اللي يتميز بزواياه الحادة.",
    "links": [
     {
-     "wiki": "Kufic",
-     "title": "الخط الكوفي",
-     "why": "نفس الخط انكتب فيه القرآن والعملات والمساجد من العراق للمغرب."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/76/Tombstone_of_carved_marble%2C_Egypt%2C_Fatimid_era%2C_10th_cent.%3B_Museum_of_Islamic_Art%2C_Cairo_%281%29.jpg/330px-Tombstone_of_carved_marble%2C_Egypt%2C_Fatimid_era%2C_10th_cent.%3B_Museum_of_Islamic_Art%2C_Cairo_%281%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Tombstone_of_carved_marble,_Egypt,_Fatimid_era,_10th_cent.;_Museum_of_Islamic_Art,_Cairo_(1).jpg",
+     "title": "شاهد فاطمي من رخام، القاهرة",
+     "why": "حروف كوفية بارزة بزوايا حادة، مثل اللي قدامك.",
+     "title_en": "Fatimid marble tombstone, Cairo",
+     "why_en": "Raised Kufic letters with sharp angles, like the ones in front of you."
     },
     {
-     "wiki": "Mesha_Stele",
-     "title": "مسلّة ميشع، الأردن",
-     "why": "حجر بازلت منقوش بكتابة قديمة، يشبهه بطريقة الحفر."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/42/Medieval_tombstone_from_Dahlak.jpg/330px-Medieval_tombstone_from_Dahlak.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Medieval_tombstone_from_Dahlak.jpg",
+     "title": "شاهد من جزر دهلك، إرتيريا",
+     "why": "نفس الخط الكوفي وصل لساحل البحر الأحمر الأفريقي.",
+     "title_en": "Tombstone from Dahlak, Eritrea",
+     "why_en": "The same Kufic script on the African coast of the Red Sea."
     }
    ],
    "audio": "scenes/corner/audio/story/stop_02.wav"
   },
   {
-   "say": "هذا شاهد قبر، فوقه زخرفة تشبه المحراب، وتحتها اسم صاحبه وتاريخ وفاته وآيات من القرآن.",
+   "say": "وهذا شاهد قبر، شف فوقه زخرفة كأنها محراب، وتحته اسم صاحبه ويوم وفاته وآيات من القرآن.",
    "links": [
     {
-     "wiki": "Gravestone",
-     "title": "شواهد القبور في الثقافات",
-     "why": "كل حضارة كتبت على قبورها اسم المتوفى، بس بلغتها ورموزها."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a2/Tombstone_of_carved_marble%2C_Egypt%2C_Fatimid_era%2C_11th_cent.%3B_Museum_of_Islamic_Art%2C_Cairo_%281%29.jpg/330px-Tombstone_of_carved_marble%2C_Egypt%2C_Fatimid_era%2C_11th_cent.%3B_Museum_of_Islamic_Art%2C_Cairo_%281%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Tombstone_of_carved_marble,_Egypt,_Fatimid_era,_11th_cent.;_Museum_of_Islamic_Art,_Cairo_(1).jpg",
+     "title": "شاهد بقوس محراب، مصر",
+     "why": "زخرفة على شكل محراب فوق الكتابة، مثل هالشاهد بالضبط.",
+     "title_en": "Tombstone with a niche arch, Egypt",
+     "why_en": "A niche-shaped arch above the text, just like this one."
     },
     {
-     "wiki": "Kufic",
-     "title": "الخط الكوفي",
-     "why": "زخرفة الحروف هنا من مدرسة الخط الكوفي."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d7/Funerary_stela_of_Christopher%2C_in_Coptic%2C_sandstone_-_Museo_Egizio_%28Turin%29_S_18158_p01.jpg/330px-Funerary_stela_of_Christopher%2C_in_Coptic%2C_sandstone_-_Museo_Egizio_%28Turin%29_S_18158_p01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Funerary_stela_of_Christopher,_in_Coptic,_sandstone_-_Museo_Egizio_(Turin)_S_18158_p01.jpg",
+     "title": "شاهد قبطي، مصر",
+     "why": "المسيحيين في مصر بعد سووا قوس فوق الكتابة، بس باللغة القبطية.",
+     "title_en": "Coptic funerary stele, Egypt",
+     "why_en": "Egyptian Christians also framed the text under an arch, in Coptic."
     }
    ],
    "audio": "scenes/corner/audio/story/stop_03.wav"
   },
   {
-   "say": "لاحظ كيف يختلف شكل الحجر من شاهد لشاهد، بعضها مستطيل وبعضها أطرافه مكسورة، والزمن ترك أثره عليها.",
+   "say": "شف كيف شكل الحجر يختلف من شاهد لشاهد، فيه المستطيل وفيه اللي أطرافه مكسّرة، والزمن مخلّي أثره عليها.",
    "links": [
     {
-     "wiki": "Runestone",
-     "title": "حجارة الرونية، إسكندنافيا",
-     "why": "حجارة منقوشة لتخليد الموتى عند الفايكنغ، بفكرة قريبة وخط مختلف تماماً."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/Tombstones_of_Ahlat%2C_general_view.jpg/330px-Tombstones_of_Ahlat%2C_general_view.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Tombstones_of_Ahlat,_general_view.jpg",
+     "title": "مقبرة أخلاط السلجوقية، تركيا",
+     "why": "شواهد واقفة بأشكال وأحجام مختلفة، والزمن أثّر عليها.",
+     "title_en": "Seljuk cemetery of Ahlat, Turkey",
+     "why_en": "Standing stones of many shapes and sizes, worn by time."
+    },
+    {
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/38/Tombstone_of_carved_marble%2C_Egypt%2C_Fatimid_or_Ayyubid_era%2C_12th_cent.%3B_Museum_of_Islamic_Art%2C_Cairo_%281%29.jpg/330px-Tombstone_of_carved_marble%2C_Egypt%2C_Fatimid_or_Ayyubid_era%2C_12th_cent.%3B_Museum_of_Islamic_Art%2C_Cairo_%281%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Tombstone_of_carved_marble,_Egypt,_Fatimid_or_Ayyubid_era,_12th_cent.;_Museum_of_Islamic_Art,_Cairo_(1).jpg",
+     "title": "شاهد رأسه مدوّر، مصر",
+     "why": "شكل ثاني للشاهد: الرأس مقوّس بدل المستطيل.",
+     "title_en": "Round-topped tombstone, Egypt",
+     "why_en": "Another shape: a rounded top instead of a rectangle."
     }
    ],
    "audio": "scenes/corner/audio/story/stop_04.wav"
@@ -64,66 +93,108 @@
    "say": "هالقطعة محطوطة داخل الفاترينة عشان تنحمى، وتقدر تشوف آثار النقش على وجهها لو قربت.",
    "links": [
     {
-     "wiki": "Behistun_Inscription",
-     "title": "نقش بيستون، إيران",
-     "why": "نقش كبير على الصخر بثلاث لغات، يشبهه بفكرة تسجيل الكلام على الحجر."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/South_Arabian_-_Stele_with_Bust_of_a_Woman_-_Walters_2143.jpg/330px-South_Arabian_-_Stele_with_Bust_of_a_Woman_-_Walters_2143.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:South_Arabian_-_Stele_with_Bust_of_a_Woman_-_Walters_2143.jpg",
+     "title": "شاهد من جنوب الجزيرة العربية، اليمن",
+     "why": "قطعة محفوظة بمتحف مثل هالقطعة، بوجه منحوت فوق اسم صاحبه.",
+     "title_en": "South Arabian stele, Yemen",
+     "why_en": "Kept in a museum like this one, a carved face above the owner's name."
+    },
+    {
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a6/EzanaGreekTablet.jpg/330px-EzanaGreekTablet.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:EzanaGreekTablet.jpg",
+     "title": "مسلّة عيزانا، أكسوم في إثيوبيا",
+     "why": "حجر واقف منقوش يسجّل أخبار الملك بثلاث كتابات.",
+     "title_en": "Ezana Stone, Aksum, Ethiopia",
+     "why_en": "A standing stone recording the king's deeds in three scripts."
     }
    ],
    "audio": "scenes/corner/audio/story/stop_05.wav"
   },
   {
-   "say": "وجنبها لوحة تشرح القطع، وهي من أهم المصادر اللي نعرف منها تاريخ المكان وأصحابه.",
+   "say": "وجنبها لوحة تشرح القطع، وهي من أهم الأشياء اللي نعرف منها تاريخ المكان وأهله.",
    "links": [
+    {
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Hegra_Inscription_Marcus_Aurelius.jpg/330px-Hegra_Inscription_Marcus_Aurelius.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Hegra_Inscription_Marcus_Aurelius.jpg",
+     "title": "نقش لاتيني في الحِجر",
+     "why": "نقش رسمي على الحجر، منه عرفوا تاريخ المكان ومن حكمه.",
+     "title_en": "Latin inscription at Hegra",
+     "why_en": "An official inscription that tells who ruled the place, and when."
+    },
     {
      "wiki": "Code_of_Hammurabi",
      "title": "مسلّة حمورابي، العراق",
-     "why": "من أقدم الأحجار المكتوبة، عليها قوانين بابل."
+     "why": "من أقدم الأحجار المكتوبة، عليها قوانين بابل.",
+     "title_en": "Code of Hammurabi, Iraq",
+     "why_en": "One of the oldest written stones: the laws of Babylon."
     }
    ],
    "audio": "scenes/corner/audio/story/stop_06.wav"
   },
   {
-   "say": "حجرين منقوشين جنب بعض، والخط فيهم يوضح كيف تطور الخط العربي مع الزمن.",
+   "say": "وهنا حجرين منقوشين جنب بعض، وتقدر تشوف فيهم كيف الخط العربي تطوّر مع الزمن.",
    "links": [
     {
-     "wiki": "Kufic",
-     "title": "الخط الكوفي",
-     "why": "من أول أشكال الخط العربي المزخرف."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Euting_Nabataean_inscriptions_from_Hegra%2C_Al-Ula_05.jpg/330px-Euting_Nabataean_inscriptions_from_Hegra%2C_Al-Ula_05.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Euting_Nabataean_inscriptions_from_Hegra,_Al-Ula_05.jpg",
+     "title": "نقش نبطي",
+     "why": "الخط النبطي هو جد الخط العربي، وتشوف فيه بداية الحروف.",
+     "title_en": "Nabataean inscription",
+     "why_en": "Nabataean is the ancestor of the Arabic script: you can see the letters begin."
     },
     {
-     "wiki": "Rosetta_Stone",
-     "title": "حجر رشيد، مصر",
-     "why": "مثال ثاني على حجر حفظ لنا كتابة قديمة."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b8/Ancient_Blocks_With_Sabaean_Inscriptions%2C_Yeha%2C_Ethiopia_%283146498586%29.jpg/330px-Ancient_Blocks_With_Sabaean_Inscriptions%2C_Yeha%2C_Ethiopia_%283146498586%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Ancient_Blocks_With_Sabaean_Inscriptions,_Yeha,_Ethiopia_(3146498586).jpg",
+     "title": "حجارة بخط المسند، إثيوبيا",
+     "why": "خط ثاني من الجزيرة العربية، انحفر على حجارة يها.",
+     "title_en": "Blocks in the Sabaean script, Yeha, Ethiopia",
+     "why_en": "Another script from Arabia, carved on stones in Yeha."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_07.mp3"
+   "audio": "scenes/corner/audio/story/stop_07.wav"
   },
   {
    "say": "وهنا كسرات من نقوش وشواهد، لقوها في مواقع أثرية بالجزيرة العربية، وكل كسرة فيها جزء من حكاية. تعال نكمل للحجارة الواقفة.",
    "links": [
     {
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/76/Safaitic_script_with_a_figure_of_a_camel_on_a_red_sandstone_fragment%2C_from_es-Safa%2C_currently_housed_in_the_British_Museum.jpg/330px-Safaitic_script_with_a_figure_of_a_camel_on_a_red_sandstone_fragment%2C_from_es-Safa%2C_currently_housed_in_the_British_Museum.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Safaitic_script_with_a_figure_of_a_camel_on_a_red_sandstone_fragment,_from_es-Safa,_currently_housed_in_the_British_Museum.jpg",
+     "title": "كسرة حجر بكتابة صفائية",
+     "why": "كسرة منقوشة بكتابة ورسم جمل، من بادية الشام.",
+     "title_en": "Safaitic fragment with a camel",
+     "why_en": "A carved fragment with writing and a camel, from the Syrian desert."
+    },
+    {
      "wiki": "Mesha_Stele",
      "title": "مسلّة ميشع، الأردن",
-     "why": "انلقت مكسورة بعد، ورجعوا ركبوا قطعها."
+     "why": "انلقت مكسورة بعد، ورجعوا ركبوا قطعها.",
+     "title_en": "Mesha Stele, Jordan",
+     "why_en": "Also found broken, and put back together piece by piece."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_08.mp3"
+   "audio": "scenes/corner/audio/story/stop_08.wav"
   },
   {
    "say": "وختامها مع الحجارة الواقفة! عليها رسوم حيوانات وكتابات صخرية تركها الناس اللي مروا من هنا قبل آلاف السنين، مع القوافل وتجارة البخور. وإذا عندك أي سؤال، اضغط علي.",
    "links": [
     {
-     "wiki": "Runestone",
-     "title": "حجارة الرونية، إسكندنافيا",
-     "why": "حجارة واقفة منقوشة، بفكرة قريبة من بعيد."
+     "img": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/84/Desert_Drawing_and_Safaitic_Inscription_from_Jordan%2C_1st_century_BCE_to_4th_century_CE._Jordan_Museum.jpg/330px-Desert_Drawing_and_Safaitic_Inscription_from_Jordan%2C_1st_century_BCE_to_4th_century_CE._Jordan_Museum.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+     "page": "https://commons.wikimedia.org/wiki/File:Desert_Drawing_and_Safaitic_Inscription_from_Jordan,_1st_century_BCE_to_4th_century_CE._Jordan_Museum.jpg",
+     "title": "رسم جمل وكتابة صفائية، الأردن",
+     "why": "رسوم حيوانات وكتابات تركها الرعاة على الصخر، مثل اللي هنا.",
+     "title_en": "Camel drawing and Safaitic text, Jordan",
+     "why_en": "Animals and writing left on rock by herders, like the ones here."
     },
     {
      "wiki": "Tassili_n'Ajjer",
      "title": "رسوم طاسيلي، الجزائر",
-     "why": "رسوم صخرية لحيوانات وناس من الصحراء الكبرى."
+     "why": "رسوم صخرية لحيوانات وناس من الصحراء الكبرى.",
+     "title_en": "Tassili n'Ajjer, Algeria",
+     "why_en": "Rock art of animals and people in the Sahara."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_09.mp3"
+   "audio": "scenes/corner/audio/story/stop_09.wav"
   }
  ]
 }

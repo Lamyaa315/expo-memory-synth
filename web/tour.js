@@ -6,6 +6,7 @@ import { flyTo, setHome } from './stage.js';
 import { initWalk } from './walk.js';
 import { sceneUrl, WALK, SCENES, SCENE } from './scene-config.js';
 import * as voice from './voice.js';
+import { speakLang } from './languages.js';
 
 const FADE_MS = 350;          // dim, jump, brighten: gliding between stops crosses blurry, unfilmed space
 const SETTLE_SECONDS = 1.4;   // after the jump, ease in from a little further back
@@ -79,6 +80,7 @@ export async function initTour(v) {
     const res = await fetch(sceneUrl('story.json'), { cache: 'no-cache' });
     story = res.ok ? await res.json() : null;
   } catch { story = null; }
+  if (story && speakLang().code !== 'ar') translated(speakLang().code);
 
   viewer = v;
   if (tour.fov) {
@@ -167,21 +169,44 @@ function step(d) {
 
 // The guide tells about the stop (a recorded clip if there is one, else his voice from the server or the
 // browser), then calls done. Nothing to say: a short pause instead.
-function narrate(i, done) {
+async function narrate(i, done) {
   const s = story?.stops?.[i];
   const text = s?.say;
   if (!text) { autoTimer = setTimeout(done, AUTO_PAUSE_MS); return; }
   const guide = $('guideBtn');
   guide?.classList.add('speaking');
+  const t = moveToken;
+  const code = speakLang().code;
+  // Another language: he says the same thing in it (translated once by the server), else the Arabic clip
+  const lines = code === 'ar' ? null : await translated(code);
+  const said = lines?.[i];
+  if (t !== moveToken || !auto) { guide?.classList.remove('speaking'); return; }
   const end = () => { guide?.classList.remove('speaking'); done(); };
-  const opts = { onend: end, onblocked: (play) => { guide?.classList.remove('speaking'); stopAuto(); } };
-  if (s.audio) voice.playFile(s.audio, text, opts);
+  const opts = { onend: end, onblocked: () => { guide?.classList.remove('speaking'); stopAuto(); } };
+  if (said) voice.speak(said, { ...opts, lang: code });
+  // Making his voice takes several seconds: start on the next stop's line while he talks about this one
+  if (said && lines[i + 1]) voice.prepare(lines[i + 1], code);
+  else if (s.audio) voice.playFile(s.audio, text, opts);
   else voice.speak(text, opts);
+}
+
+// The tour's lines in a language: { code: Promise<[text per stop] | null> }
+const translations = {};
+function translated(code) {
+  if (!translations[code]) {
+    translations[code] = fetch('/api/tour/say', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scene: SCENE.id, lang: code }),
+    }).then((r) => (r.ok ? r.json() : null)).then((d) => d?.say || null).catch(() => null);
+    translations[code].then((v) => { if (!v) delete translations[code]; });   // try again next time
+  }
+  return translations[code];
 }
 
 // The automatic tour: at each stop the guide speaks, then the tour moves on by itself, into the next
 // pavilion too, until the end or until the visitor takes over (a button, a drag, or tapping the guide)
 function startAuto({ fromHere = false } = {}) {
+  if (!tour) return;   // the tour hasn't loaded yet
   if (!fromHere) voice.unlock();   // the tap that started it lets the guide's voice play all the way
   auto = true;
   render();
@@ -234,6 +259,9 @@ function render() {
 $('tourPrev').addEventListener('click', () => step(-1));
 $('tourNext').addEventListener('click', () => step(1));
 $('tourAuto').addEventListener('click', () => (auto ? stopAuto() : startAuto()));
-document.addEventListener('langchange', render);
+document.addEventListener('langchange', () => {
+  render();
+  if (story && speakLang().code !== 'ar') translated(speakLang().code);   // ready before the next stop
+});
 // Opening a hotspot pauses the automatic walk (its own flight takes over the camera)
 document.addEventListener('hotspot:play', () => stopAuto());

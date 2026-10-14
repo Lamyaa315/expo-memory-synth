@@ -127,7 +127,7 @@
     opacity: 0; transform: translateY(-8px); transition: opacity .4s ease, transform .4s ease; pointer-events: none;
   }
   .culture.on { opacity: 1; transform: none; pointer-events: auto; }
-  .culture h2 { font-size: .92rem; margin: 0 0 .55rem; padding-inline-end: 1.8rem; }
+  .culture h2 { font-size: .92rem; margin: 0 0 .55rem; padding-inline: 1.8rem; }   /* room for × on either side (English titles run the other way) */
   .culture-close { position: absolute; top: .45rem; inset-inline-end: .5rem; width: 1.7rem; height: 1.7rem; border-radius: 50%;
     border: 0; background: rgba(29, 36, 64, .08); color: var(--ink); font: 600 1rem/1 var(--font); cursor: pointer; }
   .culture-list { display: flex; flex-direction: column; gap: .5rem; }
@@ -288,7 +288,7 @@
   @media (max-width: 899px) {
     /* The sheet covers the bottom on phones: he stands under the tour bar */
     .guide { top: calc(62px + env(safe-area-inset-top, 0px)); bottom: auto; inset-inline-end: .5rem; width: 58px; }
-    .guide-bubble { bottom: auto; top: 18%; inset-inline-end: 100%; max-width: 170px; font-size: .8rem; }
+    .guide-bubble { bottom: auto; top: 52px; inset-inline-end: 100%; max-width: 170px; font-size: .8rem; }   /* under the language list */
   }
   @media (prefers-reduced-motion: reduce) {
     .guide svg, .guide.speaking svg, .guide.waving .hand, .guide-photo, .guide.speaking .guide-photo,
@@ -302,6 +302,31 @@
   .chip:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
   .listen-btn { align-self: flex-end; font-size: .85rem !important; padding: .4rem .8rem !important; }
   .demo-note { font-size: .78rem; color: #8A5A12; background: #F3E7CF; border-radius: 8px; padding: .35rem .6rem; margin: 0 0 .6rem; }
+
+  /* Saad's chat: when he is opened, the panel shows only the conversation */
+  .panel.guide-mode #storyView > :not(#guide) { display: none; }
+  .panel.guide-mode #guide { margin-top: 0; padding-top: 0; border-top: 0; }
+  .guide-head { display: flex; align-items: center; gap: .6rem; margin: 0 0 .7rem; padding-inline-end: 2.2rem; }
+  .guide-head > div { flex: 1 1 auto; min-width: 0; }
+  .guide-head h2 { margin: 0; font-size: 1.05rem; }
+  .guide-head .demo-note { margin: .15rem 0 0; padding: .1rem .45rem; display: inline-block; font-size: .7rem; }
+  .guide-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: 50% 12%;
+    background: #DDD8CB; flex: none; }
+  .reply-mode { flex: none; font-size: .8rem !important; padding: .35rem .7rem !important; white-space: nowrap; }
+  .lang-pick {
+    position: fixed; z-index: 9; top: 1.25rem; inset-inline-end: 1.25rem; display: flex; align-items: center; gap: .3rem;
+    padding: .25rem .3rem .25rem .6rem; border-radius: 999px; color: var(--stone);
+    background: rgba(20, 17, 14, .72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(230, 227, 218, .18);
+  }
+  .lang-pick select { font: inherit; font-size: .88rem; color: var(--stone); background: transparent; border: 0;
+    padding: .3rem .2rem; cursor: pointer; max-width: 9.5rem; }
+  .lang-pick select option { color: #1d2440; }
+  .lang-pick:focus-within { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  @media (max-width: 899px) {
+    .lang-pick { top: calc(62px + env(safe-area-inset-top, 0px)); inset-inline-end: auto; inset-inline-start: .5rem; }
+    .lang-pick select { max-width: 7.5rem; font-size: .82rem; }
+  }
 
   /* Questions */
   .ask { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid #C9C4B5; }
@@ -483,6 +508,10 @@
     <p class="culture-credit" id="cultureCredit"></p>
   </aside>
 
+  <!-- Language: Saad speaks it (languages.js); the page itself is Arabic or English -->
+  <label class="lang-pick"><span aria-hidden="true">🌐</span>
+    <select id="langSelect" aria-label="اللغة / Language"></select></label>
+
   <!-- Hotspot markers, positioned over the 3D scene by hotspots.js -->
   <div class="spots" id="spots"></div>
 
@@ -508,11 +537,15 @@
       </div>
       <!-- The tour guide: needs scripts/server.py with an API key (guide.js) -->
       <div class="ask" id="guide" hidden>
-        <h2 id="guideTitle">اسأل المرشد</h2>
-        <p class="hint" id="guideIntro"></p>
-        <div class="chat" id="guideChat" aria-live="polite" hidden></div>
-        <div class="chips" id="guideChips"></div>
-        <p class="demo-note" id="guideDemo" hidden></p>
+        <header class="guide-head">
+          <img src="guide.png" alt="" class="guide-avatar">
+          <div>
+            <h2 id="guideTitle">سعد</h2>
+            <p class="demo-note" id="guideDemo" hidden></p>
+          </div>
+          <button type="button" class="ghost reply-mode" id="replyMode" aria-pressed="true"></button>
+        </header>
+        <div class="chat" id="guideChat" aria-live="polite"></div>
         <form class="ask-form" id="guideForm">
           <input id="guideInput" type="text" maxlength="300" autocomplete="off" aria-labelledby="guideTitle">
           <button type="button" class="ghost mic" id="guideMic" hidden>🎙</button>
@@ -610,6 +643,7 @@ import { initCulture } from './culture.js';
 import { initVoice } from './voice.js';
 import { makeFloorScene, enableLimits, trackSorting } from './stage.js';
 import { initTour } from './tour.js';
+import { LANGUAGES, byCode, uiLang, savedLang, rememberLang } from './languages.js';
 
 const $ = (id) => document.getElementById(id);
 let viewer = null;
@@ -751,12 +785,23 @@ async function loadStory() {
   render();
 }
 
-$('langBtn').addEventListener('click', () => {
-  lang = lang === 'ar' ? 'en' : 'ar';
-  document.documentElement.dataset.lang = lang;
+// The visitor's language: Saad answers and talks in it; the page's text follows in Arabic or English
+function setLang(code, { quiet = false } = {}) {
+  const l = byCode(code) || LANGUAGES[0];
+  lang = uiLang(l.code);
+  const root = document.documentElement;
+  root.dataset.lang = lang;
+  root.dataset.speak = l.code;
+  root.lang = l.code;
+  $('langSelect').value = l.code;
+  rememberLang(l.code);
   render();
-  document.dispatchEvent(new Event('langchange'));
-});
+  if (!quiet) document.dispatchEvent(new Event('langchange'));
+}
+$('langSelect').replaceChildren(...LANGUAGES.map((l) => new Option(l.name, l.code)));
+$('langSelect').addEventListener('change', (e) => setLang(e.target.value));
+$('langBtn').addEventListener('click', () => setLang(lang === 'ar' ? 'en' : 'ar'));
+setLang(savedLang() || 'ar', { quiet: true });
 
 // ---------- Audio tour ----------
 const narr = $('narrationAudio');

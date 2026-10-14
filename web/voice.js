@@ -2,6 +2,8 @@
 // or the browser's own voice as a last resort (preferring its "Natural"/"Online" voices).
 // Only one thing speaks at a time.
 
+import { byCode } from './languages.js';
+
 const isArabic = (text) => /[؀-ۿ]/.test(text);
 const player = new Audio();
 let serverVoice = false;
@@ -45,10 +47,11 @@ export function playFile(src, text, { onend } = {}) {
   player.play().catch(() => { if (t === token) speakNow(text, t); });
 }
 
-export function speak(text, { onend, onblocked } = {}) {
+// lang: the language code of the text (languages.js), so the voice reads it with the right accent
+export function speak(text, { onend, onblocked, lang } = {}) {
   const t = start(onend);
   onBlocked = onblocked || null;
-  speakNow(text, t);
+  speakNow(text, t, lang);
 }
 
 // Stops whatever is speaking; its onend still runs so buttons go back to "listen"
@@ -68,15 +71,33 @@ function start(onend) {
   return token;
 }
 
-async function speakNow(text, t) {
+// Clips asked for ahead of time (the tour's next stop), so they play without the wait for the voice
+const ready = new Map();   // lang|text -> Promise<Blob | null>
+function clip(text, lang) {
+  const key = `${lang || ''}|${text}`;
+  if (!ready.has(key)) {
+    const p = fetch('/api/tts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, lang }),
+    }).then((res) => (res.ok ? res.blob() : null)).catch(() => null);
+    p.then((b) => { if (!b) ready.delete(key); });   // failed: ask again next time
+    ready.set(key, p);
+    if (ready.size > 30) ready.delete(ready.keys().next().value);
+  }
+  return ready.get(key);
+}
+
+// Start making a clip now, to be spoken later with speak()
+export function prepare(text, lang) {
+  if (serverVoice && text) clip(text, lang);
+}
+
+async function speakNow(text, t, lang) {
   if (!text) return finish(t);
   if (serverVoice) {
     try {
-      const res = await fetch('/api/tts', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
-      });
-      if (!res.ok) throw new Error(res.status);
-      const url = URL.createObjectURL(await res.blob());
+      const blob = await clip(text, lang);
+      if (!blob) throw new Error('no clip');
+      const url = URL.createObjectURL(blob);
       if (t !== token) return URL.revokeObjectURL(url);
       player.src = url;
       player.onended = () => { URL.revokeObjectURL(url); finish(t); };
@@ -97,22 +118,30 @@ async function speakNow(text, t) {
       if (t !== token) return;
     }
   }
-  browserSpeak(text, t);
+  browserSpeak(text, t, lang);
 }
 
+// Saad is a man: only male browser voices (by their names; browsers don't say which voices are male)
+const MALE = /\b(male|man|hamed|naayf|shakir|bassel|fahed|omar|david|mark|guy|andrew|brian|christopher|eric|roger|steffan|ryan|george|james|daniel|thomas|henri|paul|claude|remy|alvaro|pablo|jorge|raul|antonio|conrad|stefan|killian|diego|cosimo|maarten|dmitry|ahmet|farid|asad|madhur|prabhat|pradeep|yunxi|yunyang|keita|ichiro|injoon|ardi|osman|niwat|nam ?minh|angelo|rafiki|ostap|marek|nestoras|mattias|ameha|muuse|sardor|daulet)\b/i;
+const FEMALE = /\b(female|woman|hoda|zariyah|salma|amany|laila|zira|aria|jenny|sonia|denise|elvira|katja|elsa)\b/i;
+
 function bestVoice(lang) {
-  const voices = speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith(lang));
+  const voices = speechSynthesis.getVoices()
+    .filter((v) => v.lang.toLowerCase().startsWith(lang) && MALE.test(v.name) && !FEMALE.test(v.name));
   const score = (v) => (/natural|online|neural/i.test(v.name) ? 3 : 0) + (/google/i.test(v.name) ? 1 : 0)
     + (/sa|ae|kw|qa|bh|om/i.test(v.lang.slice(3)) ? 1 : 0);
   return voices.sort((a, b) => score(b) - score(a))[0];
 }
 
-function browserSpeak(text, t) {
+// The last resort when the server's voice can't speak. Without a male voice for the language he stays
+// silent (his answer is still written in the chat) rather than speak in someone else's voice.
+function browserSpeak(text, t, lang) {
   if (!('speechSynthesis' in window)) return finish(t);
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = isArabic(text) ? 'ar-SA' : 'en-US';
-  const voice = bestVoice(u.lang.slice(0, 2));
-  if (voice) u.voice = voice;
+  u.lang = byCode(lang)?.speech || (isArabic(text) ? 'ar-SA' : 'en-US');
+  const voice = bestVoice(u.lang.split('-')[0].toLowerCase());
+  if (!voice) return finish(t);
+  u.voice = voice;
   u.rate = 0.95;
   u.onend = u.onerror = () => finish(t);
   speechSynthesis.speak(u);

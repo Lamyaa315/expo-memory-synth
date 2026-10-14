@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import * as GS from '@mkkellogg/gaussian-splats-3d';
 import { findScene, CAMERA, sceneUrl, withScene } from './scene-config.js';
 import { makeFloorScene, hideFloor } from './stage.js';
+import * as story from './film-story.js';
+import { estimateDepth, Parallax, randomParallax } from './film-depth.js';
 
 document.querySelector('a.back')?.setAttribute('href', withScene('index.html'));   // back to the same pavilion
 
@@ -34,6 +36,12 @@ let audio = null;       // { ctx, gain, dest }
 let playing = null;     // { raf, resolve }
 let resultUrl = null;
 let mode = 'idle';      // 'idle' | 'playing' | 'recording'
+let narration = null;   // AudioBuffer: the story read in the visitor's voice
+let narrationSrc = null;
+let aiTitle = '';       // the film title the story came with
+let sampleWav = null;   // the visitor's recorded voice sample, kept only in memory until the clip is made
+const NARRATION_START = 1.5;   // seconds into the film
+const NARRATION_DUCK = 0.15;   // ambient volume under the voice
 
 // Arabic glyphs must be loaded before the canvas can draw them in Readex Pro
 const fontsReady = Promise.all([
@@ -158,7 +166,36 @@ async function loadPhoto(file) {
     thumb: url,
     caption: '',
     motion: randomMotion(),
+    parallax: randomParallax(),
+    depth: null,          // filled in the background by the depth model (film-depth.js)
   };
+}
+
+// ---------- 3D motion: depth for each photo, in the background ----------
+let parallax = null;
+let depthQueue = Promise.resolve();
+let depthFailed = false;
+const use3d = () => $('depthToggle').checked && !depthFailed;
+
+function queueDepth() {
+  if (!use3d()) return;
+  depthQueue = depthQueue.then(async () => {
+    const todo = photos.filter((p) => !p.depth);
+    for (let i = 0; i < todo.length; i++) {
+      if (!use3d()) return;
+      $('depthStatus').textContent = `يجهز الحركة 3D… ${i + 1} من ${todo.length}` + (i === 0 && !parallax ? ' (أول مرة ينزل الموديل، تقريباً 27 ميقا)' : '');
+      try {
+        parallax ||= new Parallax();
+        todo[i].depth = await estimateDepth(todo[i].img);
+      } catch (err) {
+        console.warn('3D motion off:', err);
+        depthFailed = true;
+        $('depthStatus').textContent = 'الحركة 3D ما تشتغل على هذا المتصفح، فالصور بتتحرك بالطريقة العادية.';
+        return;
+      }
+    }
+    if (todo.length) $('depthStatus').textContent = 'الحركة 3D جاهزة ✓';
+  });
 }
 
 // ---------- Drawing ----------
@@ -181,7 +218,14 @@ function drawPhoto(p, t) {
   const dw = img.width * s, dh = img.height * s;
   const cx = W / 2 + lerp(m.x0, m.x1, e) * W;
   const cy = H / 2 + lerp(m.y0, m.y1, e) * H;
-  ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+  if (p.depth && parallax && use3d()) {
+    // The same frame, but the photo moves like a scene: near things slide more than far ones
+    const f = Math.min(1, 1280 / Math.max(dw, dh));
+    const layer = parallax.render(p, e, Math.max(1, Math.round(dw * f)), Math.max(1, Math.round(dh * f)));
+    ctx.drawImage(layer, cx - dw / 2, cy - dh / 2, dw, dh);
+  } else {
+    ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+  }
 }
 
 function wrap(text, max) {
@@ -285,7 +329,7 @@ function drawVignette() {
 function filmInfo() {
   const name = $('nameInput').value.trim();
   return {
-    title: name ? `رحلة ${name}` : 'رحلتي',
+    title: aiTitle || (name ? `رحلة ${name}` : 'رحلتي'),
     place: $('placeInput').value.trim(),
     date: new Date().toLocaleDateString('ar-SA-u-ca-gregory', { day: 'numeric', month: 'long', year: 'numeric' }),
   };
@@ -293,9 +337,16 @@ function filmInfo() {
 
 function buildTimeline() {
   // Each segment overlaps the previous one by DUR.fade for a crossfade
+  // With a narration, the photos share its length (the film never cuts the voice off)
+  let photoDur = DUR.photo;
+  if (narration && photos.length) {
+    const need = NARRATION_START + narration.duration + 2.5;   // the voice, then a breath before the end
+    const fixed = (DUR.intro - DUR.fade) + (DUR.outro - DUR.fade) + DUR.fade;
+    photoDur = Math.max(DUR.photo, (need - fixed) / photos.length + DUR.fade);
+  }
   const segs = [
     { kind: 'intro', dur: DUR.intro },
-    ...photos.map((p) => ({ kind: 'photo', p, dur: DUR.photo })),
+    ...photos.map((p) => ({ kind: 'photo', p, dur: photoDur })),
     { kind: 'outro', dur: DUR.outro },
   ];
   let t = 0;
@@ -335,7 +386,10 @@ function ensureAudio() {
     gain.connect(ac.destination);
     gain.connect(dest);
     ac.createMediaElementSource(ambientEl).connect(gain);
-    audio = { ctx: ac, gain, dest };
+    const voiceGain = ac.createGain();
+    voiceGain.connect(ac.destination);
+    voiceGain.connect(dest);
+    audio = { ctx: ac, gain, dest, voiceGain };
   }
   audio.ctx.resume();
   return audio;
@@ -348,13 +402,30 @@ function startAmbient(total) {
   const g = audio.gain.gain, now = audio.ctx.currentTime;
   g.cancelScheduledValues(now);
   g.setValueAtTime(0, now);
-  g.linearRampToValueAtTime(AMBIENT_VOLUME, now + 2);
-  g.setValueAtTime(AMBIENT_VOLUME, now + Math.max(2, total - 2.5));
+  const level = narration ? NARRATION_DUCK : AMBIENT_VOLUME;   // softer under the voice
+  g.linearRampToValueAtTime(level, now + 2);
+  g.setValueAtTime(level, now + Math.max(2, total - 2.5));
   g.linearRampToValueAtTime(0, now + total);
+  startNarration();
+}
+
+function startNarration() {
+  stopNarration();
+  if (!audio || !narration) return;
+  narrationSrc = audio.ctx.createBufferSource();
+  narrationSrc.buffer = narration;
+  narrationSrc.connect(audio.voiceGain);
+  narrationSrc.start(audio.ctx.currentTime + NARRATION_START);
+}
+
+function stopNarration() {
+  try { narrationSrc?.stop(); } catch { /* not started */ }
+  narrationSrc = null;
 }
 
 function stopAmbient() {
   ambientEl.pause();
+  stopNarration();
   if (audio) {
     audio.gain.gain.cancelScheduledValues(audio.ctx.currentTime);
     audio.gain.gain.setValueAtTime(0, audio.ctx.currentTime);
@@ -517,6 +588,8 @@ function renderList() {
     ? `${photos.length} من ${MAX_PHOTOS} صور. تقدر تكتب سطر قصير عن كل صورة وترتبها.`
     : `حتى ${MAX_PHOTOS} صورة. تقدر تكتب سطر قصير عن كل صورة.`;
   $('makeBtn').disabled = photos.length === 0;
+  $('storyBox').hidden = photos.length === 0 || !features.story && !features.clone;
+  updateStoryButtons();
   $('photoInput').disabled = photos.length >= MAX_PHOTOS;
 }
 
@@ -531,6 +604,7 @@ $('photoInput').addEventListener('change', async (e) => {
   }
   renderList();
   if (failed) $('count').textContent += ` (تعذّر فتح ${failed} صورة)`;
+  queueDepth();
 });
 
 $('makeBtn').addEventListener('click', async () => {
@@ -578,6 +652,97 @@ $('editBtn').addEventListener('click', () => {
   $('player').hidden = true;
   $('setup').hidden = false;
   setStatus('');
+});
+
+$('depthToggle').addEventListener('change', () => {
+  if (use3d()) queueDepth(); else $('depthStatus').textContent = '';
+});
+
+// ---------- Story and voice ----------
+let features = { story: false, clone: false };
+const storyBusy = { on: false };
+
+function updateStoryButtons() {
+  $('storyBtn').disabled = !features.story || !$('storyConsent').checked || !photos.length || storyBusy.on;
+  $('recBtn').disabled = !features.clone || !$('voiceConsent').checked || storyBusy.on;
+  $('cloneBtn').disabled = !features.clone || !$('voiceConsent').checked || !sampleWav
+    || !$('storyText').value.trim() || storyBusy.on;
+}
+
+$('storyConsent').addEventListener('change', updateStoryButtons);
+$('voiceConsent').addEventListener('change', () => {
+  if (!$('voiceConsent').checked) sampleWav = null;   // consent withdrawn: forget the sample
+  updateStoryButtons();
+});
+$('storyText').addEventListener('input', () => {
+  if (narration) { narration = null; $('voicePreview').hidden = true; $('voiceStatus').textContent = 'غيّرت القصة: ولّد الصوت من جديد.'; }
+  updateStoryButtons();
+});
+
+$('storyBtn').addEventListener('click', async () => {
+  storyBusy.on = true; updateStoryButtons();
+  $('storyStatus').textContent = 'يشوف صورك ويكتب القصة… (ممكن ياخذ دقيقة)';
+  try {
+    const r = await story.writeStory(photos.map((p) => story.forUpload(p.img)), {
+      place: $('placeInput').value.trim(), name: $('nameInput').value.trim(), lang: 'ar',
+    });
+    if (r.story) $('storyText').value = r.story;
+    if (r.title) aiTitle = r.title;
+    (r.captions || []).forEach((c, i) => { if (photos[i] && !photos[i].caption && c) photos[i].caption = c; });
+    renderList();
+    $('storyStatus').textContent = 'جاهزة ✓ عدّلها براحتك.';
+  } catch {
+    $('storyStatus').textContent = 'ما قدرت أكتبها الحين. جرّب بعد شوي، أو اكتبها بنفسك.';
+  }
+  storyBusy.on = false; updateStoryButtons();
+});
+
+$('recBtn').addEventListener('click', async () => {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    $('voiceStatus').textContent = 'المتصفح هذا ما يدعم التسجيل.';
+    return;
+  }
+  storyBusy.on = true; updateStoryButtons();
+  $('recBtn').classList.add('on');
+  try {
+    sampleWav = await story.recordSample(15, (left) => {
+      $('voiceStatus').textContent = `اقرأ الجملة اللي فوق… باقي ${left} ثانية`;
+    });
+    $('voiceStatus').textContent = 'تسجّل ✓ الحين اضغط "ولّد القصة بصوتي".';
+  } catch {
+    sampleWav = null;
+    $('voiceStatus').textContent = 'ما قدرت أسجل. اسمح للمتصفح يستخدم المايك وجرّب مرة ثانية.';
+  }
+  $('recBtn').classList.remove('on');
+  storyBusy.on = false; updateStoryButtons();
+});
+
+$('cloneBtn').addEventListener('click', async () => {
+  const text = $('storyText').value.trim();
+  if (!text || !sampleWav) return;
+  storyBusy.on = true; updateStoryButtons();
+  $('voiceStatus').textContent = 'يحكي قصتك بصوتك… (2 إلى 4 دقايق، خلّ الصفحة مفتوحة)';
+  try {
+    const clip = await story.cloneStory(text, sampleWav, 'ar');
+    sampleWav = null;   // done with the visitor's voice sample
+    const a = ensureAudio();
+    narration = await a.ctx.decodeAudioData(clip.slice(0));
+    $('voicePreview').src = URL.createObjectURL(new Blob([clip], { type: 'audio/wav' }));
+    $('voicePreview').hidden = false;
+    $('voiceStatus').textContent = `جاهز ✓ (${Math.round(narration.duration)} ثانية). بيكون مع الفيلم. العينة انحذفت.`;
+  } catch (e) {
+    $('voiceStatus').textContent = e.message === 'offline'
+      ? 'خدمة الصوت مو شغالة الحين.' : 'ما قدرت أولّد الصوت. جرّب مرة ثانية.';
+  }
+  storyBusy.on = false; updateStoryButtons();
+});
+
+story.features().then((f) => {
+  features = f;
+  $('storyConsent').disabled = !f.story;
+  $('voiceBox').hidden = !f.clone;
+  $('voiceOff').hidden = f.clone;
+  renderList();
 });
 
 // ---------- Start ----------

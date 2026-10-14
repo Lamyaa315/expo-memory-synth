@@ -190,7 +190,7 @@ function select(h, { play = false } = {}) {
   askFor(h);
   $('storyView').hidden = true;
   $('spotView').hidden = false;
-  $('panel').classList.remove('closed', 'collapsed');
+  $('panel').classList.remove('closed', 'collapsed', 'guide-mode');
   if (play) playAudio();
 }
 
