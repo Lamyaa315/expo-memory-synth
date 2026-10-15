@@ -588,7 +588,7 @@ function renderList() {
     ? `${photos.length} من ${MAX_PHOTOS} صور. تقدر تكتب سطر قصير عن كل صورة وترتبها.`
     : `حتى ${MAX_PHOTOS} صورة. تقدر تكتب سطر قصير عن كل صورة.`;
   $('makeBtn').disabled = photos.length === 0;
-  $('storyBox').hidden = photos.length === 0 || !features.story && !features.clone;
+  $('storyBox').hidden = photos.length === 0 || !features.story && !features.clone && !features.tts;
   updateStoryButtons();
   $('photoInput').disabled = photos.length >= MAX_PHOTOS;
 }
@@ -659,11 +659,12 @@ $('depthToggle').addEventListener('change', () => {
 });
 
 // ---------- Story and voice ----------
-let features = { story: false, clone: false };
+let features = { story: false, clone: false, tts: false };
 const storyBusy = { on: false };
 
 function updateStoryButtons() {
   $('storyBtn').disabled = !features.story || !$('storyConsent').checked || !photos.length || storyBusy.on;
+  $('saadBtn').disabled = !features.tts || !$('storyText').value.trim() || storyBusy.on;
   $('recBtn').disabled = !features.clone || !$('voiceConsent').checked || storyBusy.on;
   $('cloneBtn').disabled = !features.clone || !$('voiceConsent').checked || !sampleWav
     || !$('storyText').value.trim() || storyBusy.on;
@@ -675,7 +676,11 @@ $('voiceConsent').addEventListener('change', () => {
   updateStoryButtons();
 });
 $('storyText').addEventListener('input', () => {
-  if (narration) { narration = null; $('voicePreview').hidden = true; $('voiceStatus').textContent = 'غيّرت القصة: ولّد الصوت من جديد.'; }
+  if (narration) {
+    narration = null;
+    $('voicePreview').hidden = true;
+    $('saadStatus').textContent = $('voiceStatus').textContent = 'غيّرت القصة: ولّد الصوت من جديد.';
+  }
   updateStoryButtons();
 });
 
@@ -686,7 +691,10 @@ $('storyBtn').addEventListener('click', async () => {
     const r = await story.writeStory(photos.map((p) => story.forUpload(p.img)), {
       place: $('placeInput').value.trim(), name: $('nameInput').value.trim(), lang: 'ar',
     });
-    if (r.story) $('storyText').value = r.story;
+    if (r.story) {
+      $('storyText').value = r.story;
+      if (narration) { narration = null; $('voicePreview').hidden = true; }
+    }
     if (r.title) aiTitle = r.title;
     (r.captions || []).forEach((c, i) => { if (photos[i] && !photos[i].caption && c) photos[i].caption = c; });
     renderList();
@@ -717,18 +725,42 @@ $('recBtn').addEventListener('click', async () => {
   storyBusy.on = false; updateStoryButtons();
 });
 
+// The narration as the film's voice track, with a preview the visitor can listen to
+async function useNarration(clip, type) {
+  const a = ensureAudio();
+  narration = await a.ctx.decodeAudioData(clip.slice(0));
+  if ($('voicePreview').src) URL.revokeObjectURL($('voicePreview').src);
+  $('voicePreview').src = URL.createObjectURL(new Blob([clip], { type }));
+  $('voicePreview').hidden = false;
+}
+
+$('saadBtn').addEventListener('click', async () => {
+  const text = $('storyText').value.trim();
+  if (!text) return;
+  ensureAudio();   // inside the click, so the browser lets the film play sound
+  storyBusy.on = true; updateStoryButtons();
+  $('saadStatus').textContent = 'سعد يقرأ قصتك… (ثواني)';
+  try {
+    const { clip, type } = await story.speakStory(text, 'ar');
+    await useNarration(clip, type);
+    $('saadStatus').textContent = `جاهز ✓ (${Math.round(narration.duration)} ثانية). بيكون مع الفيلم.`;
+  } catch (e) {
+    $('saadStatus').textContent = e.message === 'offline'
+      ? 'صوت سعد مو شغال الحين (حطوا GEMINI_API_KEY في .env).' : 'ما قدرت أولّد الصوت. جرّب بعد شوي.';
+  }
+  storyBusy.on = false; updateStoryButtons();
+});
+
 $('cloneBtn').addEventListener('click', async () => {
   const text = $('storyText').value.trim();
   if (!text || !sampleWav) return;
+  ensureAudio();   // inside the click, so the browser lets the film play sound
   storyBusy.on = true; updateStoryButtons();
   $('voiceStatus').textContent = 'يحكي قصتك بصوتك… (2 إلى 4 دقايق، خلّ الصفحة مفتوحة)';
   try {
     const clip = await story.cloneStory(text, sampleWav, 'ar');
     sampleWav = null;   // done with the visitor's voice sample
-    const a = ensureAudio();
-    narration = await a.ctx.decodeAudioData(clip.slice(0));
-    $('voicePreview').src = URL.createObjectURL(new Blob([clip], { type: 'audio/wav' }));
-    $('voicePreview').hidden = false;
+    await useNarration(clip, 'audio/wav');
     $('voiceStatus').textContent = `جاهز ✓ (${Math.round(narration.duration)} ثانية). بيكون مع الفيلم. العينة انحذفت.`;
   } catch (e) {
     $('voiceStatus').textContent = e.message === 'offline'
@@ -740,6 +772,7 @@ $('cloneBtn').addEventListener('click', async () => {
 story.features().then((f) => {
   features = f;
   $('storyConsent').disabled = !f.story;
+  $('saadBox').hidden = !f.tts;
   $('voiceBox').hidden = !f.clone;
   $('voiceOff').hidden = f.clone;
   renderList();

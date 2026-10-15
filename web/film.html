@@ -157,7 +157,14 @@
       <label class="field" for="storyText">القصة</label>
       <textarea id="storyText" rows="5" maxlength="1500" placeholder="اكتب قصتك هنا، أو خلّ الذكاء الاصطناعي يكتبها."></textarea>
 
-      <div id="voiceBox">
+      <div id="saadBox" hidden>
+        <h2>🔊 خلّ سعد يحكيها</h2>
+        <p class="hint">سعد يقرأ قصتك بصوته، بدون ما تسجل شي.</p>
+        <div class="actions"><button class="ghost" id="saadBtn" disabled>🔊 احكها بصوت سعد</button></div>
+        <p class="status" id="saadStatus"></p>
+      </div>
+
+      <div id="voiceBox" hidden>
         <h2>🎙 احكيها بصوتك</h2>
         <p class="hint">سجّل 15 ثانية وأنت تقرأ الجملة اللي تحت، والذكاء الاصطناعي يحكي القصة كلها بصوتك.</p>
         <blockquote class="sample" id="sampleLine">هلا، هذا صوتي. اليوم زرت المتحف الوطني في الرياض، وشفت نقوش قديمة عمرها مئات السنين، وكانت تجربة حلوة ودي أحكيكم عنها بالتفصيل.</blockquote>
@@ -168,9 +175,9 @@
           <button class="ghost" id="cloneBtn" disabled>ولّد القصة بصوتي</button>
         </div>
         <p class="status" id="voiceStatus"></p>
-        <audio id="voicePreview" controls hidden></audio>
       </div>
-      <p class="hint" id="voiceOff" hidden>الصوت بصوتك مو شغال الحين (شغّل scripts/voice_clone.py على السيرفر).</p>
+      <audio id="voicePreview" controls hidden></audio>
+      <p class="hint" id="voiceOff" hidden>الحكي بصوتك مو شغال الحين (شغّل scripts/voice_clone.py على السيرفر).</p>
     </section>
 
     <div class="actions">
