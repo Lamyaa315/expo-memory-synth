@@ -9,10 +9,21 @@ export async function features() {
   try {
     const res = await fetch('/api/health', { cache: 'no-store' });
     const h = res.ok ? await res.json() : {};
-    return { story: h.film_story === true, clone: h.clone === true };
+    return { story: h.film_story === true, clone: h.clone === true, tts: h.tts === true };
   } catch {
-    return { story: false, clone: false };
+    return { story: false, clone: false, tts: false };
   }
+}
+
+// The story read in Saad's voice (Gemini, edge-tts as backup: scripts/tts.py). Returns { clip, type }
+export async function speakStory(text, lang) {
+  const res = await fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, lang }),
+  });
+  if (!res.ok) throw new Error(res.status === 503 ? 'offline' : `tts ${res.status}`);
+  return { clip: await res.arrayBuffer(), type: res.headers.get('Content-Type') || 'audio/wav' };
 }
 
 // A small JPEG of a photo for the model (it doesn't need the full size)

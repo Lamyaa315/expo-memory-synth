@@ -55,6 +55,27 @@
            background: #F4F2EC; border-radius: 12px; padding: .5rem; }
   .photo img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; display: block; }
   .photo input { font-size: .9rem; padding: .5rem .6rem; }
+  .modes { border: 0; padding: 0; margin: 1rem 0 0; display: grid; gap: .5rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .modes legend { font-size: .9rem; font-weight: 600; margin-bottom: .45rem; padding: 0; }
+  .mode { position: relative; display: flex; flex-direction: column; gap: .2rem; padding: .7rem .8rem; cursor: pointer;
+          background: #F4F2EC; border: 2px solid transparent; border-radius: 12px; font-size: .85rem; line-height: 1.5; }
+  .mode input { position: absolute; opacity: 0; pointer-events: none; }
+  .mode b { font-size: .95rem; }
+  .mode span { color: var(--ink-soft); }
+  .mode:has(input:checked) { border-color: var(--teal); background: #fff; }
+  .mode:has(input:focus-visible) { outline: 2px solid var(--saffron); outline-offset: 2px; }
+  .mode:has(input:disabled) { opacity: .5; cursor: default; }
+  .saad-tag { font-size: .8rem; color: var(--ink-soft); }
+  .middle { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+  .voice-row { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+  .vbtn { font: inherit; font-size: .8rem; padding: .3rem .6rem; border: 1px solid var(--line); border-radius: 999px;
+          background: #fff; color: var(--ink); cursor: pointer; }
+  .vbtn:hover { background: #E2DED3; }
+  .vbtn.rec { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .vbtn.remove:hover { color: var(--danger); }
+  .vbtn:disabled { opacity: .4; cursor: default; }
+  .vbtn:focus-visible { outline: 2px solid var(--saffron); }
+  .vlen { font-size: .8rem; color: var(--ink-soft); }
   .tools { display: flex; flex-direction: column; gap: .2rem; }
   .tools button {
     font: inherit; width: 32px; height: 28px; border: 0; border-radius: 6px; cursor: pointer;
@@ -105,19 +126,9 @@
 
   [hidden] { display: none !important; }
 
-  /* Offscreen host for the 3D viewer: frames are copied into the film canvas */
-  #sceneHost { position: fixed; top: 0; left: 0; width: 720px; height: 1280px; opacity: 0; pointer-events: none; z-index: -1; }
 
   @media (prefers-reduced-motion: reduce) { .status.busy::before { animation: none; } }
 </style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
-  }
-}
-</script>
 </head>
 <body>
 <main>
@@ -126,7 +137,7 @@
   <!-- Step 1: pick photos -->
   <section class="card" id="setup">
     <h1>فيلم رحلتك</h1>
-    <p class="lead">اختر صور من زيارتك، ونسوي لك فيلم قصير يبدأ بجولة داخل المكان. احفظه عندك أو أرسله لأهلك وأصحابك اللي ما قدروا يجون.</p>
+    <p class="lead">اختر صور من زيارتك، ونسوي لك فيلم قصير يحكي رحلتك. احفظه عندك أو أرسله لأهلك وأصحابك اللي ما قدروا يجون.</p>
     <p class="privacy"><i></i><span>الفيلم ينصنع داخل متصفحك. صورك وصوتك ما يطلعون من جهازك إلا إذا وافقت على القصة الذكية أو الصوت تحت.</span></p>
 
     <label class="field" for="nameInput">اسمك</label>
@@ -140,6 +151,17 @@
       <input type="file" id="photoInput" accept="image/*" multiple>
     </label>
     <p class="count" id="count">حتى 12 صورة. تقدر تكتب سطر قصير عن كل صورة.</p>
+
+    <!-- How the visitor tells the story of each photo -->
+    <fieldset class="modes" id="modes">
+      <legend>كيف تبي تحكي رحلتك؟</legend>
+      <label class="mode"><input type="radio" name="tell" value="text" checked>
+        <b>✍️ نص على الصور</b><span>تكتب سطر عن كل صورة، ويطلع مكتوب في الفيلم.</span></label>
+      <label class="mode"><input type="radio" name="tell" value="voice">
+        <b>🎙 بصوتي</b><span>تسجّل صوتك وأنت تحكي عن كل صورة، ويطلع صوتك عليها.</span></label>
+      <label class="mode" id="saadMode"><input type="radio" name="tell" value="saad">
+        <b>🔊 بصوت سعد</b><span id="saadModeHint">تكتب الكلام، وسعد يقوله بصوته على كل صورة.</span></label>
+    </fieldset>
 
     <ul class="photos" id="photos"></ul>
     <label class="check"><input type="checkbox" id="depthToggle" checked>
@@ -157,7 +179,14 @@
       <label class="field" for="storyText">القصة</label>
       <textarea id="storyText" rows="5" maxlength="1500" placeholder="اكتب قصتك هنا، أو خلّ الذكاء الاصطناعي يكتبها."></textarea>
 
-      <div id="voiceBox">
+      <div id="saadBox" hidden>
+        <h2>🔊 خلّ سعد يحكيها</h2>
+        <p class="hint">سعد يقرأ قصتك بصوته، بدون ما تسجل شي.</p>
+        <div class="actions"><button class="ghost" id="saadBtn" disabled>🔊 احكها بصوت سعد</button></div>
+        <p class="status" id="saadStatus"></p>
+      </div>
+
+      <div id="voiceBox" hidden>
         <h2>🎙 احكيها بصوتك</h2>
         <p class="hint">سجّل 15 ثانية وأنت تقرأ الجملة اللي تحت، والذكاء الاصطناعي يحكي القصة كلها بصوتك.</p>
         <blockquote class="sample" id="sampleLine">هلا، هذا صوتي. اليوم زرت المتحف الوطني في الرياض، وشفت نقوش قديمة عمرها مئات السنين، وكانت تجربة حلوة ودي أحكيكم عنها بالتفصيل.</blockquote>
@@ -168,9 +197,9 @@
           <button class="ghost" id="cloneBtn" disabled>ولّد القصة بصوتي</button>
         </div>
         <p class="status" id="voiceStatus"></p>
-        <audio id="voicePreview" controls hidden></audio>
       </div>
-      <p class="hint" id="voiceOff" hidden>الصوت بصوتك مو شغال الحين (شغّل scripts/voice_clone.py على السيرفر).</p>
+      <audio id="voicePreview" controls hidden></audio>
+      <p class="hint" id="voiceOff" hidden>الحكي بصوتك مو شغال الحين (شغّل scripts/voice_clone.py على السيرفر).</p>
     </section>
 
     <div class="actions">
@@ -196,7 +225,6 @@
   </section>
 </main>
 
-<div id="sceneHost" aria-hidden="true"></div>
 <audio id="ambientAudio" src="audio/ambient.mp3" preload="auto" loop></audio>
 
 <script type="module" src="film.js"></script>
