@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لقيا · رحلاتك المحفوظة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="laqya.css">
+<style>
+  /* "رحلاتك المحفوظة" (Figma): the visitor's saved trip films, newest first; a tap plays one */
+  .head { display: flex; align-items: center; justify-content: space-between; gap: .8rem; margin-top: .4rem; }
+  .head h1 { font-size: clamp(1.6rem, 7vw, 2rem); }
+  .bell { position: relative; width: 46px; height: 46px; border-radius: 50%; background: #fff; border: 0; display: grid; place-items: center;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .08); cursor: pointer; flex: none; }
+  .bell svg { width: 22px; height: 22px; }
+  .bell::after { content: ""; position: absolute; top: 9px; inset-inline-end: 9px; width: 8px; height: 8px; border-radius: 50%; background: #B4382A; }
+  .lead { margin-top: -.6rem; font-size: .92rem; }
+  .new { padding: .95rem; font-size: 1.05rem; }
+  .new svg { width: 22px; height: 22px; }
+  .bar-row { display: flex; align-items: center; justify-content: space-between; margin-top: .3rem; font-size: .9rem; }
+  .bar-row b { font-weight: 600; }
+  .sort { background: none; border: 0; font: 500 .85rem var(--font); color: var(--soft); cursor: pointer; padding: .2rem; }
+  .trips { display: grid; gap: .8rem; }
+  .trip { display: flex; align-items: center; gap: .9rem; padding: .7rem; border-radius: 22px; background: var(--card);
+    border: 1px solid var(--line); cursor: pointer; text-align: start; font: inherit; color: inherit; width: 100%; }
+  .trip:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .thumb { position: relative; width: 74px; height: 74px; border-radius: 16px; flex: none; background: #D9D3C7 center / cover; display: grid; place-items: center; }
+  .thumb span { width: 30px; height: 30px; border-radius: 50%; background: rgba(255, 255, 255, .92); display: grid; place-items: center; }
+  .thumb svg { width: 12px; height: 12px; color: var(--ink); }
+  .trip .txt { flex: 1; min-width: 0; }
+  .trip b { display: block; font-size: 1.05rem; font-weight: 700; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trip small { display: block; color: var(--soft); font-size: .8rem; }
+  .trip .chev { color: var(--soft); flex: none; }
+  .trip .chev svg { width: 18px; height: 18px; }
+  .empty { text-align: center; padding: 2rem 1rem; color: var(--soft); display: grid; gap: .5rem; justify-items: center; }
+  .empty svg { width: 54px; height: 54px; color: var(--plum); opacity: .6; }
+  .empty b { color: var(--ink); font-size: 1.05rem; }
+
+  /* a trip, playing */
+  .sheet { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: rgba(20, 18, 14, .62);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .sheet[hidden] { display: none; }
+  .sheet .box { width: min(380px, 100%); max-height: 100%; overflow-y: auto; background: var(--bg); border-radius: 26px; padding: 1rem; display: grid; gap: .7rem; }
+  .sheet video { width: 100%; max-height: 62vh; border-radius: 18px; background: #000; display: block; }
+  .sheet h2 { font-size: 1.15rem; }
+  .sheet p { margin: 0; color: var(--soft); font-size: .86rem; line-height: 1.7; white-space: pre-line; }
+  .sheet .row { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .sheet .row .btn { flex: 1; padding: .6rem .8rem; }
+  .sheet .danger { color: #A1442F; border-color: #E4C3B9; }
+  .sheet .close { justify-self: center; background: none; border: 0; color: var(--soft); font: 500 .9rem var(--font); cursor: pointer; padding: .3rem; }
+  .status { margin: 0; font-size: .84rem; color: var(--soft); min-height: 1.2em; }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="head">
+    <h1>رحلاتك المحفوظة</h1>
+    <button class="bell" type="button" aria-label="التنبيهات">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15zM10 20.5a2 2 0 004 0" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg></button>
+  </header>
+  <p class="lead">كل رحلة حفظتها من الإكسبو، بصورها وصوتك وقصتها.</p>
+
+  <a class="btn primary block new" href="memory.html">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    رحلة جديدة</a>
+
+  <div class="bar-row">
+    <b id="count"></b>
+    <button class="sort" type="button" id="sortBtn" aria-live="polite">الأحدث أولاً</button>
+  </div>
+  <div class="trips" id="trips"></div>
+</main>
+
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="box">
+    <video id="player" controls playsinline></video>
+    <h2 id="sheetTitle"></h2>
+    <p id="sheetMeta"></p>
+    <div class="row">
+      <a class="btn primary" id="dl" download>⬇ حمّل</a>
+      <button class="btn" type="button" id="shareBtn">↗ شارك</button>
+      <button class="btn danger" type="button" id="delBtn">احذف</button>
+    </div>
+    <p class="status" id="status" aria-live="polite"></p>
+    <button class="close" type="button" id="closeBtn">إغلاق</button>
+  </div>
+</div>
+
+<nav class="tabbar" data-current="memories"></nav>
+<script type="module" src="laqya-nav.js"></script>
+<script type="module">
+import * as trips from './trips.js';
+
+const $ = (id) => document.getElementById(id);
+const ar = (n) => String(Number(n) || 0);   // the design writes numbers in Latin digits (14 أكتوبر 2026 · 6 صور)
+const day = (t) => new Date(t).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' });
+const PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>';
+const CHEV = '<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+let newestFirst = true;
+let open = null, url = null;
+
+function meta(t) {
+  return `${day(t.at)} · ${ar(t.photos || 0)} صور · ${trips.clock(t.seconds || 0)}`;
+}
+
+function draw() {
+  const all = trips.list().sort((a, b) => (newestFirst ? b.at - a.at : a.at - b.at));
+  $('count').textContent = `رحلاتك السابقة · ${ar(all.length)}`;
+  $('sortBtn').textContent = newestFirst ? 'الأحدث أولاً' : 'الأقدم أولاً';
+  $('sortBtn').hidden = all.length < 2;
+  if (!all.length) {
+    $('trips').innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="3" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M3.5 15l4.5-4 4 3.5 3-2.5 5 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>
+      <b>ما حفظت رحلة للحين</b><span>اضغط «رحلة جديدة» وسوّ فيلم من صورك، بصوتك أو بصوت سعد.</span></div>`;
+    return;
+  }
+  $('trips').replaceChildren(...all.map((t) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'trip';
+    b.innerHTML = `<span class="thumb"><span>${PLAY}</span></span><span class="txt"><b></b><small></small></span><span class="chev" aria-hidden="true">${CHEV}</span>`;
+    if (t.thumb) b.querySelector('.thumb').style.backgroundImage = `url(${t.thumb})`;
+    b.querySelector('b').textContent = t.title || 'رحلتي';
+    b.querySelector('small').textContent = meta(t);
+    b.setAttribute('aria-label', `${t.title || 'رحلتي'}، ${meta(t)}`);
+    b.addEventListener('click', () => show(t));
+    return b;
+  }));
+}
+
+async function show(t) {
+  open = t;
+  $('sheetTitle').textContent = t.title || 'رحلتي';
+  $('sheetMeta').textContent = [meta(t), t.story].filter(Boolean).join('\n');
+  $('status').textContent = '';
+  const blob = t.hasFilm ? await trips.film(t.id) : null;
+  if (url) URL.revokeObjectURL(url);
+  url = blob ? URL.createObjectURL(blob) : null;
+  $('player').hidden = !url;
+  $('dl').hidden = !url;
+  $('shareBtn').hidden = !url;
+  if (url) {
+    $('player').src = url;
+    $('dl').href = url;
+    $('dl').download = `laqya-${new Date(t.at).toISOString().slice(0, 10)}.${(t.type || '').includes('mp4') ? 'mp4' : 'webm'}`;
+  } else {
+    $('status').textContent = t.id.startsWith('old')
+      ? 'هالرحلة انحفظت قبل التحديث، وقتها ما كان الفيلم نفسه ينحفظ معها. الرحلات الجديدة تنحفظ بفيلمها وتقدر تشغّلها من هنا.'
+      : 'الفيلم نفسه مو محفوظ في هالمتصفح (يمكن انمسحت بيانات المتصفح)، بس القصة باقية.';
+  }
+  $('sheet').hidden = false;
+  if (url) $('player').play().catch(() => {});
+}
+function close() {
+  $('player').pause();
+  $('sheet').hidden = true;
+  open = null;
+}
+$('closeBtn').addEventListener('click', close);
+$('sheet').addEventListener('click', (e) => { if (e.target === $('sheet')) close(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('sheet').hidden) close(); });
+$('delBtn').addEventListener('click', async () => {
+  if (!open || !confirm('نحذف هالرحلة من هذا المتصفح؟')) return;
+  await trips.remove(open.id);
+  close();
+  draw();
+});
+$('shareBtn').addEventListener('click', async () => {
+  if (!open || !url) return;
+  const blob = await (await fetch(url)).blob();
+  const file = new File([blob], $('dl').download, { type: blob.type });
+  try {
+    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: open.title, text: `${open.title} · لقيا` });
+    else if (navigator.share) { await navigator.share({ title: open.title, text: `${open.title} · رحلتي مع لقيا`, url: location.origin }); $('status').textContent = 'المتصفح هذا ما يرسل الفيديو نفسه: حمّله وأرفقه.'; }
+    else $('status').textContent = 'المتصفح هذا ما يدعم المشاركة. حمّل الرحلة وشاركها من جهازك.';
+  } catch (e) { if (e.name !== 'AbortError') $('status').textContent = 'ما قدرت أشارك الحين.'; }
+});
+$('sortBtn').addEventListener('click', () => { newestFirst = !newestFirst; draw(); });
+draw();
+</script>
+</body>
+</html>
