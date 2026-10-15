@@ -4,7 +4,14 @@ const KEY = 'laqya-memories';
 const DB = 'laqya', STORE = 'films';
 
 export function list() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+  let all;
+  try { all = JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+  // trips saved before films were kept (Oct 15) have no id: give them one, so deleting one deletes only it
+  if (all.some((t) => !t.id)) {
+    all = all.map((t, i) => (t.id ? t : { ...t, id: `old${t.at || 0}-${i}` }));
+    try { localStorage.setItem(KEY, JSON.stringify(all)); } catch {}
+  }
+  return all;
 }
 
 function db() {

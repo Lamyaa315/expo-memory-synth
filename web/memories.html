@@ -146,7 +146,9 @@ async function show(t) {
     $('dl').href = url;
     $('dl').download = `laqya-${new Date(t.at).toISOString().slice(0, 10)}.${(t.type || '').includes('mp4') ? 'mp4' : 'webm'}`;
   } else {
-    $('status').textContent = 'الفيلم نفسه مو محفوظ في هالمتصفح، بس القصة باقية.';
+    $('status').textContent = t.id.startsWith('old')
+      ? 'هالرحلة انحفظت قبل التحديث، وقتها ما كان الفيلم نفسه ينحفظ معها. الرحلات الجديدة تنحفظ بفيلمها وتقدر تشغّلها من هنا.'
+      : 'الفيلم نفسه مو محفوظ في هالمتصفح (يمكن انمسحت بيانات المتصفح)، بس القصة باقية.';
   }
   $('sheet').hidden = false;
   if (url) $('player').play().catch(() => {});
