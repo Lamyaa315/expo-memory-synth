@@ -40,7 +40,7 @@ export async function initGuide() {
     demo = res.ok && (await res.json()).demo === true;
   } catch { demo = false; }
   labels();
-  // He waves and introduces himself once the scene is up, and the greeting stays while the panel is closed
+  // He waves and introduces himself once the scene is up; the greeting stays a few seconds, then goes
   setTimeout(() => {
     $('guideBtn').classList.add('waving');
     greet();
@@ -49,13 +49,13 @@ export async function initGuide() {
   document.addEventListener('panel:close', () => {
     $('panel').classList.remove('guide-mode');
     document.body.classList.remove('asking');
-    greet();
   });
 }
 
+const GREET_MS = 6000;   // how long his greeting shows at the start
 function greet() {
   if (!$('panel').classList.contains('closed')) return;
-  say(speakLang().greet);
+  say(speakLang().greet, GREET_MS);
 }
 
 // A realistic picture (web/guide.png) replaces the drawing when it exists
@@ -132,7 +132,7 @@ function labels() {
     return b;
   }));
   if (!$('panel').classList.contains('closed') && $('panel').classList.contains('guide-mode')) welcome();
-  else if ($('guideBubble').classList.contains('on')) say(speakLang().greet);
+  else if ($('guideBubble').classList.contains('on')) greet();   // still greeting: in the new language
 }
 
 function setSpoken(on) {
