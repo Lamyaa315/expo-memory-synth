@@ -1,2 +1,4 @@
 web/scenes/corner/scene.splat filter=lfs diff=lfs merge=lfs -text
 web/scenes/corner/kingdoms.splat filter=lfs diff=lfs merge=lfs -text
+web/scenes/corner/scene-lite.splat filter=lfs diff=lfs merge=lfs -text
+web/scenes/corner/kingdoms-lite.splat filter=lfs diff=lfs merge=lfs -text
