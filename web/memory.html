@@ -493,6 +493,7 @@ async function prepare() {
   if (voiceMode() === 'saad') { screen.dataset.msg = '🔊 سعد يسجّل صوته…'; await saadVoices(); }
   screen.classList.remove('making');
   busy = false; update();
+  drawLines();   // the voice buttons were drawn while busy (disabled): draw them again
   await film.poster();
   if (voiceMode() === 'mine') status('status', 'اضغط «احكِ عن الصورة بصوتك» تحت كل صورة، وبعدين شغّل الفيلم.');
 }
@@ -547,6 +548,7 @@ async function save() {
   $('playBtn').hidden = false;
   $('bar').style.width = '0';
   busy = false; update();
+  drawLines();
   film.poster();
 }
 
