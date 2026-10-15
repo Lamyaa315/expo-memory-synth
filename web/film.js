@@ -1,15 +1,10 @@
 // Trip film: the visitor picks photos from their visit and gets a short vertical film.
-// Opening: the camera flies through the 3D scene (or a title card if there's no scene.ply),
-// then each photo with slow Ken Burns motion and an optional caption, then a closing card.
+// Opening: a title over a soft backdrop of the first photo, then each photo with slow Ken Burns motion and an optional caption, then a closing card.
 // Everything runs in the browser: photos never leave the device.
-import * as THREE from 'three';
-import * as GS from '@mkkellogg/gaussian-splats-3d';
-import { findScene, CAMERA, sceneUrl, withScene } from './scene-config.js';
-import { makeFloorScene, hideFloor } from './stage.js';
+import { withScene } from './scene-config.js';
 import * as story from './film-story.js';
 import { estimateDepth, Parallax, randomParallax } from './film-depth.js';
 
-document.querySelector('a.back')?.setAttribute('href', withScene('index.html'));   // back to the same pavilion
 
 // ---------- Film settings ----------
 const W = 720, H = 1280;                                    // vertical 9:16, fits phones and stories
@@ -28,10 +23,8 @@ const ambientEl = $('ambientAudio');
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const lerp = (a, b, t) => a + (b - a) * t;
 const ease = (t) => 0.5 - 0.5 * Math.cos(Math.PI * clamp01(t));
-const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
 
-let photos = [];        // { img, tiny, thumb, caption, motion }
-let viewer = null;      // GS.Viewer when scene.ply exists
+let photos = [];        // { img, tiny, thumb, caption, motion, voice: AudioBuffer|null, voiceUrl }
 let audio = null;       // { ctx, gain, dest }
 let playing = null;     // { raf, resolve }
 let resultUrl = null;
@@ -42,92 +35,24 @@ let aiTitle = '';       // the film title the story came with
 let sampleWav = null;   // the visitor's recorded voice sample, kept only in memory until the clip is made
 const NARRATION_START = 1.5;   // seconds into the film
 const NARRATION_DUCK = 0.15;   // ambient volume under the voice
+const VOICE_LEAD = 0.6;        // a photo's own voice starts this long after the photo appears
+const VOICE_MAX = 30;          // seconds of voice per photo
+let photoVoices = [];          // the sources playing the photos' voices
+let recording = null;          // { p, rec, stream, left, timer } while the visitor records a photo's voice
+let tellMode = 'text';         // how each photo is told: 'text' | 'voice' (the visitor's) | 'saad' (Saad reads the line)
+// The voice that goes over a photo in the current mode
+const voiceOf = (p) => tellMode === 'voice' ? p.voice
+  : tellMode === 'saad' && p.saadText === p.caption.trim() ? p.saadVoice : null;
+const hasPhotoVoices = () => photos.some(voiceOf);
+// The whole story read in the visitor's cloned voice (voice_clone.py) is part of the "my voice" mode only,
+// and only when no photo has its own recording
+const storyVoice = () => tellMode === 'voice' && !hasPhotoVoices() ? narration : null;
 
 // Arabic glyphs must be loaded before the canvas can draw them in Readex Pro
 const fontsReady = Promise.all([
   document.fonts.load(`600 40px "Readex Pro"`, 'رحلة'),
   document.fonts.load(`300 30px "Readex Pro"`, 'رحلة'),
 ]).catch(() => {});
-
-// ---------- 3D scene (optional) ----------
-const sceneReady = (async () => {
-  try {
-    const url = await findScene();
-    if (!url) return null;
-    const v = new GS.Viewer({
-      ...CAMERA,
-      rootElement: $('sceneHost'),
-      threeScene: makeFloorScene(),
-      selfDrivenMode: false,           // we drive the camera and copy each frame into the film
-      useBuiltInControls: false,
-      ignoreDevicePixelRatio: true,    // render at exactly 720x1280
-      sharedMemoryForWorkers: false,
-    });
-    await v.addSplatScene(url, { showLoadingUI: false, splatAlphaRemovalThreshold: 5 });
-    return v;
-  } catch (e) {
-    console.warn('Scene not available for the film, using a title card instead.', e);
-    return null;
-  }
-})();
-
-const target = new THREE.Vector3(...CAMERA.initialCameraLookAt);
-const up = new THREE.Vector3(...CAMERA.cameraUp).normalize();
-const baseOffset = new THREE.Vector3(...CAMERA.initialCameraPosition).sub(target);
-// Orbit around the starting angle saved in the editor, when there is one
-fetch(sceneUrl('hotspots.json'), { cache: 'no-cache' }).then((r) => r.json()).then(({ start }) => {
-  if (!start) return;
-  target.fromArray(start.target);
-  baseOffset.fromArray(start.position).sub(target);
-}).catch(() => {});
-const offset = new THREE.Vector3();
-
-// With a corridor tour (tour.json), the opening walks the first stops of the filmed path instead of
-// orbiting: the scan is only sharp near where it was filmed.
-let walk = null;
-fetch(sceneUrl('tour.json'), { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((tour) => {
-  if (!tour?.stops?.length || tour.stops.length < 2) return;
-  walk = { fov: tour.fov, stops: tour.stops.slice(0, 4).map((s) => ({
-    position: new THREE.Vector3(...s.position), target: new THREE.Vector3(...s.target) })) };
-}).catch(() => {});
-const walkTarget = new THREE.Vector3();
-
-function placeOnWalk(cam, t) {
-  const segs = walk.stops.length - 1;
-  const x = ease(t) * segs;
-  const i = Math.min(segs - 1, Math.floor(x));
-  const k = x - i;
-  cam.position.lerpVectors(walk.stops[i].position, walk.stops[i + 1].position, k);
-  walkTarget.lerpVectors(walk.stops[i].target, walk.stops[i + 1].target, k);
-  cam.up.copy(up);
-  cam.lookAt(walkTarget);
-  if (walk.fov && cam.fov !== walk.fov + 10) { cam.fov = walk.fov + 10; cam.updateProjectionMatrix(); }
-}
-
-function drawScene(t) {
-  const cam = viewer.camera;
-  if (walk) {
-    hideFloor(viewer);   // walking inside the scan: the real floor is there
-    placeOnWalk(cam, t);
-  } else {
-    // Slow orbit around the look-at point while dollying in
-    const e = ease(t);
-    offset.copy(baseOffset).applyAxisAngle(up, lerp(-0.45, 0.45, e)).multiplyScalar(lerp(1.15, 0.85, e));
-    cam.position.copy(target).add(offset);
-    cam.up.copy(up);
-    cam.lookAt(target);
-  }
-  viewer.update();
-  viewer.render();
-  // Same warm museum backdrop as the site, behind the transparent 3D frame
-  const bg = ctx.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, H * 0.75);
-  bg.addColorStop(0, '#3d352b');
-  bg.addColorStop(0.55, '#221d18');
-  bg.addColorStop(1, '#110e0c');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-  ctx.drawImage(viewer.renderer.domElement, 0, 0, W, H);
-}
 
 // ---------- Photos ----------
 function decode(file) {
@@ -165,6 +90,10 @@ async function loadPhoto(file) {
     tiny: scaled(im, 24, Math.max(1, Math.round(24 * h / w))),   // stretched up later = soft blur on every browser
     thumb: url,
     caption: '',
+    voice: null,          // the visitor's own voice for this photo (recorded here, never leaves the browser)
+    voiceUrl: null,
+    saadVoice: null,      // Saad reading this photo's line (AudioBuffer), and the line it was made for
+    saadText: '',
     motion: randomMotion(),
     parallax: randomParallax(),
     depth: null,          // filled in the background by the depth model (film-depth.js)
@@ -285,16 +214,12 @@ function drawTitle(info, seconds) {
 }
 
 function drawIntro(info, t, seconds) {
-  if (viewer) {
-    drawScene(t);
-  } else {
-    // No 3D scene yet: open on a soft, slowly zooming backdrop of the first photo
-    ctx.fillStyle = NIGHT;
-    ctx.fillRect(0, 0, W, H);
-    if (photos[0]) drawCover(photos[0].tiny, lerp(1.2, 1.35, ease(t)));
-    ctx.fillStyle = 'rgba(29, 36, 64, .55)';
-    ctx.fillRect(0, 0, W, H);
-  }
+  // A soft, slowly zooming backdrop of the first photo (the visitor's own trip, not the 3D scan)
+  ctx.fillStyle = NIGHT;
+  ctx.fillRect(0, 0, W, H);
+  if (photos[0]) drawCover(photos[0].tiny, lerp(1.2, 1.35, ease(t)));
+  ctx.fillStyle = 'rgba(29, 36, 64, .55)';
+  ctx.fillRect(0, 0, W, H);
   drawTitle(info, seconds);
 }
 
@@ -339,14 +264,15 @@ function buildTimeline() {
   // Each segment overlaps the previous one by DUR.fade for a crossfade
   // With a narration, the photos share its length (the film never cuts the voice off)
   let photoDur = DUR.photo;
-  if (narration && photos.length) {
+  if (storyVoice() && photos.length) {
     const need = NARRATION_START + narration.duration + 2.5;   // the voice, then a breath before the end
     const fixed = (DUR.intro - DUR.fade) + (DUR.outro - DUR.fade) + DUR.fade;
     photoDur = Math.max(DUR.photo, (need - fixed) / photos.length + DUR.fade);
   }
   const segs = [
     { kind: 'intro', dur: DUR.intro },
-    ...photos.map((p) => ({ kind: 'photo', p, dur: photoDur })),
+    ...photos.map((p) => ({ kind: 'photo', p,
+      dur: voiceOf(p) ? Math.max(photoDur, VOICE_LEAD + voiceOf(p).duration + 0.4 + DUR.fade) : photoDur })),
     { kind: 'outro', dur: DUR.outro },
   ];
   let t = 0;
@@ -395,18 +321,38 @@ function ensureAudio() {
   return audio;
 }
 
-function startAmbient(total) {
+function startAmbient(total, tl) {
   if (!audio) return;
   ambientEl.currentTime = 0;
   ambientEl.play().catch(() => {});                   // no ambient.mp3 yet = silent film
   const g = audio.gain.gain, now = audio.ctx.currentTime;
   g.cancelScheduledValues(now);
   g.setValueAtTime(0, now);
-  const level = narration ? NARRATION_DUCK : AMBIENT_VOLUME;   // softer under the voice
+  const level = storyVoice() || hasPhotoVoices() ? NARRATION_DUCK : AMBIENT_VOLUME;   // softer under the voice
   g.linearRampToValueAtTime(level, now + 2);
   g.setValueAtTime(level, now + Math.max(2, total - 2.5));
   g.linearRampToValueAtTime(0, now + total);
-  startNarration();
+  if (hasPhotoVoices()) startPhotoVoices(tl);   // a voice over each photo
+  else if (storyVoice()) startNarration();      // or the whole story in the visitor's cloned voice
+}
+
+function startPhotoVoices(tl) {
+  stopPhotoVoices();
+  if (!audio || !tl) return;
+  const now = audio.ctx.currentTime;
+  for (const s of tl.segs) {
+    if (s.kind !== 'photo' || !voiceOf(s.p)) continue;
+    const src = audio.ctx.createBufferSource();
+    src.buffer = voiceOf(s.p);
+    src.connect(audio.voiceGain);
+    src.start(now + s.start + VOICE_LEAD);
+    photoVoices.push(src);
+  }
+}
+
+function stopPhotoVoices() {
+  photoVoices.forEach((src) => { try { src.stop(); } catch { /* not started */ } });
+  photoVoices = [];
 }
 
 function startNarration() {
@@ -426,6 +372,7 @@ function stopNarration() {
 function stopAmbient() {
   ambientEl.pause();
   stopNarration();
+  stopPhotoVoices();
   if (audio) {
     audio.gain.gain.cancelScheduledValues(audio.ctx.currentTime);
     audio.gain.gain.setValueAtTime(0, audio.ctx.currentTime);
@@ -436,11 +383,6 @@ function stopAmbient() {
 async function prepare() {
   setStatus('جاري تجهيز الفيلم…');
   await fontsReady;
-  viewer = await sceneReady;
-  if (viewer) {
-    // Let the splat sorter settle on the first camera position before rolling
-    for (let i = 0; i < 20; i++) { drawScene(0); await nextFrame(); }
-  }
   setStatus('');
 }
 
@@ -453,7 +395,7 @@ function showPoster() {
 function play() {
   stop();
   const tl = buildTimeline();
-  startAmbient(tl.total);
+  startAmbient(tl.total, tl);
   return new Promise((resolve) => {
     const t0 = performance.now();
     const tick = () => {
@@ -527,6 +469,114 @@ function showResult(blob, filename, type) {
   setStatus(`الفيلم جاهز (${(blob.size / 1e6).toFixed(1)} MB).`);
 }
 
+// ---------- The visitor's voice on each photo ----------
+// Recorded with the microphone and kept only in this page: nothing is uploaded.
+function voiceRow(p, i) {
+  const row = document.createElement('div');
+  row.className = 'voice-row';
+  const btn = (label, aria, onClick, cls = '') => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `vbtn ${cls}`;
+    b.textContent = label;
+    b.setAttribute('aria-label', aria);
+    b.disabled = mode !== 'idle' || (recording && recording.p !== p);
+    b.addEventListener('click', onClick);
+    row.appendChild(b);
+    return b;
+  };
+  if (recording?.p === p) {
+    btn(`■ وقّف (${recording.left})`, 'وقّف التسجيل', () => stopRecording(true), 'rec');
+  } else if (p.voice) {
+    btn('▶ اسمع', `اسمع صوتك على الصورة ${i + 1}`, () => new Audio(p.voiceUrl).play().catch(() => {}));
+    btn('🎙 أعد', `أعد تسجيل صوتك على الصورة ${i + 1}`, () => startRecording(p));
+    btn('✕', `احذف صوتك من الصورة ${i + 1}`, () => {
+      URL.revokeObjectURL(p.voiceUrl);
+      p.voice = null; p.voiceUrl = null;
+      renderList();
+    }, 'remove');
+    const len = document.createElement('span');
+    len.className = 'vlen';
+    len.textContent = `${Math.max(1, Math.round(p.voice.duration))} ث`;
+    row.appendChild(len);
+  } else {
+    btn('🎙 احكِ عن الصورة بصوتك', `سجّل صوتك على الصورة ${i + 1}`, () => startRecording(p));
+  }
+  return row;
+}
+
+async function startRecording(p) {
+  if (recording) return;
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    $('count').textContent = 'المتصفح هذا ما يدعم التسجيل. جرّب Chrome أو Edge.';
+    return;
+  }
+  ensureAudio();   // inside the click, so the browser lets the film play sound later
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+    });
+  } catch {
+    $('count').textContent = 'ما قدرت أفتح المايك. اسمح للمتصفح يستخدمه وجرّب مرة ثانية.';
+    return;
+  }
+  const rec = new MediaRecorder(stream);
+  const chunks = [];
+  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  rec.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop());   // the microphone light goes off
+    const keep = recording?.keep;
+    recording = null;
+    if (keep && chunks.length) {
+      const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+      try {
+        const buf = await ensureAudio().ctx.decodeAudioData(await blob.arrayBuffer());
+        if (p.voiceUrl) URL.revokeObjectURL(p.voiceUrl);
+        p.voice = buf;
+        p.voiceUrl = URL.createObjectURL(blob);
+      } catch {
+        $('count').textContent = 'ما قدرت أقرأ التسجيل. جرّب مرة ثانية.';
+      }
+    }
+    renderList();
+  };
+  recording = { p, rec, stream, left: VOICE_MAX, keep: true };
+  recording.timer = setInterval(() => {
+    if (!recording) return;
+    recording.left -= 1;
+    if (recording.left <= 0) stopRecording(true); else renderList();
+  }, 1000);
+  rec.start();
+  renderList();
+}
+
+function stopRecording(keep) {
+  if (!recording) return;
+  clearInterval(recording.timer);
+  recording.keep = keep;
+  if (recording.rec.state !== 'inactive') recording.rec.stop();
+}
+
+// ---------- Saad reading each photo's line ----------
+async function makeSaadVoices() {
+  const todo = photos.filter((p) => p.caption.trim() && p.saadText !== p.caption.trim());
+  let failed = 0;
+  for (const [n, p] of todo.entries()) {
+    setStatus(`سعد يسجّل صوته… (${n + 1} من ${todo.length})`, true);
+    const text = p.caption.trim();
+    try {
+      const { clip } = await story.speakStory(text, 'ar');
+      p.saadVoice = await ensureAudio().ctx.decodeAudioData(clip.slice(0));
+      p.saadText = text;
+    } catch {
+      failed++;
+    }
+  }
+  renderList();   // the rows show which photos have Saad's voice
+  setStatus(failed ? `ما قدر سعد يسجّل ${failed} من الصور، بتطلع مكتوبة بس. جرّب بعد شوي.` : '');
+}
+
 // ---------- UI ----------
 function setStatus(text, busy = false) {
   $('status').textContent = text;
@@ -554,10 +604,22 @@ function renderList() {
     const caption = document.createElement('input');
     caption.type = 'text';
     caption.maxLength = 80;
-    caption.placeholder = 'وش صار هنا؟ (اختياري)';
+    caption.placeholder = tellMode === 'saad' ? 'وش يقول سعد عن هالصورة؟'
+      : tellMode === 'voice' ? 'سطر يطلع مكتوب مع صوتك (اختياري)' : 'وش صار هنا؟ (اختياري)';
     caption.value = p.caption;
     caption.setAttribute('aria-label', `وصف الصورة ${i + 1}`);
     caption.addEventListener('input', () => { p.caption = caption.value; });
+
+    const middle = document.createElement('div');
+    middle.className = 'middle';
+    middle.append(caption);
+    if (tellMode === 'voice') middle.append(voiceRow(p, i));
+    if (tellMode === 'saad' && voiceOf(p)) {
+      const tag = document.createElement('span');
+      tag.className = 'saad-tag';
+      tag.textContent = `🔊 صوت سعد جاهز (${Math.max(1, Math.round(p.saadVoice.duration))} ث)`;
+      middle.append(tag);
+    }
 
     const tools = document.createElement('div');
     tools.className = 'tools';
@@ -575,20 +637,28 @@ function renderList() {
     tool('↑', `قدّم الصورة ${i + 1}`, () => move(-1), i === 0);
     tool('↓', `أخّر الصورة ${i + 1}`, () => move(1), i === photos.length - 1);
     tool('✕', `احذف الصورة ${i + 1}`, () => {
+      if (recording?.p === p) stopRecording(false);
       URL.revokeObjectURL(p.thumb);
+      if (p.voiceUrl) URL.revokeObjectURL(p.voiceUrl);
       photos.splice(i, 1);
       renderList();
     }, false, 'remove');
 
-    li.append(img, caption, tools);
+    li.append(img, middle, tools);
     list.appendChild(li);
   });
 
   $('count').textContent = photos.length
-    ? `${photos.length} من ${MAX_PHOTOS} صور. تقدر تكتب سطر قصير عن كل صورة وترتبها.`
+    ? `${photos.length} من ${MAX_PHOTOS} صور. ${{ text: 'اكتب سطر عن كل صورة ورتبها.',
+        voice: 'سجّل صوتك على كل صورة ورتبها.', saad: 'اكتب وش يقول سعد عن كل صورة ورتبها.' }[tellMode]}`
     : `حتى ${MAX_PHOTOS} صورة. تقدر تكتب سطر قصير عن كل صورة.`;
   $('makeBtn').disabled = photos.length === 0;
-  $('storyBox').hidden = photos.length === 0 || !features.story && !features.clone;
+  const cloneHere = features.clone && tellMode === 'voice';
+  $('storyBox').hidden = photos.length === 0 || !features.story && !cloneHere;
+  $('saadBox').hidden = true;                  // Saad reads each photo's line in the "Saad" mode instead
+  $('voiceBox').hidden = !cloneHere;
+  $('voiceOff').hidden = true;
+  $('voicePreview').hidden = !(cloneHere && narration);
   updateStoryButtons();
   $('photoInput').disabled = photos.length >= MAX_PHOTOS;
 }
@@ -608,6 +678,8 @@ $('photoInput').addEventListener('change', async (e) => {
 });
 
 $('makeBtn').addEventListener('click', async () => {
+  stopRecording(true);   // keep what was said so far
+  if (tellMode === 'saad') ensureAudio();   // inside the click, so the browser lets the film play sound
   $('setup').hidden = true;
   $('player').hidden = false;
   $('result').hidden = true;
@@ -615,9 +687,10 @@ $('makeBtn').addEventListener('click', async () => {
   $('bar').style.width = '0';
   setMode('idle');
   window.scrollTo(0, 0);
+  if (tellMode === 'saad') await makeSaadVoices();
   await prepare();
   showPoster();
-  setStatus(viewer ? '' : 'ما فيه مشهد 3D بعد، فالفيلم يبدأ بصورتك الأولى. أضف web/scene.ply عشان يبدأ بجولة داخل المكان.');
+  setStatus('');
 });
 
 $('playBtn').addEventListener('click', async () => {
@@ -659,11 +732,12 @@ $('depthToggle').addEventListener('change', () => {
 });
 
 // ---------- Story and voice ----------
-let features = { story: false, clone: false };
+let features = { story: false, clone: false, tts: false };
 const storyBusy = { on: false };
 
 function updateStoryButtons() {
   $('storyBtn').disabled = !features.story || !$('storyConsent').checked || !photos.length || storyBusy.on;
+  $('saadBtn').disabled = !features.tts || !$('storyText').value.trim() || storyBusy.on;
   $('recBtn').disabled = !features.clone || !$('voiceConsent').checked || storyBusy.on;
   $('cloneBtn').disabled = !features.clone || !$('voiceConsent').checked || !sampleWav
     || !$('storyText').value.trim() || storyBusy.on;
@@ -675,7 +749,11 @@ $('voiceConsent').addEventListener('change', () => {
   updateStoryButtons();
 });
 $('storyText').addEventListener('input', () => {
-  if (narration) { narration = null; $('voicePreview').hidden = true; $('voiceStatus').textContent = 'غيّرت القصة: ولّد الصوت من جديد.'; }
+  if (narration) {
+    narration = null;
+    $('voicePreview').hidden = true;
+    $('saadStatus').textContent = $('voiceStatus').textContent = 'غيّرت القصة: ولّد الصوت من جديد.';
+  }
   updateStoryButtons();
 });
 
@@ -686,7 +764,10 @@ $('storyBtn').addEventListener('click', async () => {
     const r = await story.writeStory(photos.map((p) => story.forUpload(p.img)), {
       place: $('placeInput').value.trim(), name: $('nameInput').value.trim(), lang: 'ar',
     });
-    if (r.story) $('storyText').value = r.story;
+    if (r.story) {
+      $('storyText').value = r.story;
+      if (narration) { narration = null; $('voicePreview').hidden = true; }
+    }
     if (r.title) aiTitle = r.title;
     (r.captions || []).forEach((c, i) => { if (photos[i] && !photos[i].caption && c) photos[i].caption = c; });
     renderList();
@@ -717,18 +798,42 @@ $('recBtn').addEventListener('click', async () => {
   storyBusy.on = false; updateStoryButtons();
 });
 
+// The narration as the film's voice track, with a preview the visitor can listen to
+async function useNarration(clip, type) {
+  const a = ensureAudio();
+  narration = await a.ctx.decodeAudioData(clip.slice(0));
+  if ($('voicePreview').src) URL.revokeObjectURL($('voicePreview').src);
+  $('voicePreview').src = URL.createObjectURL(new Blob([clip], { type }));
+  $('voicePreview').hidden = false;
+}
+
+$('saadBtn').addEventListener('click', async () => {
+  const text = $('storyText').value.trim();
+  if (!text) return;
+  ensureAudio();   // inside the click, so the browser lets the film play sound
+  storyBusy.on = true; updateStoryButtons();
+  $('saadStatus').textContent = 'سعد يقرأ قصتك… (ثواني)';
+  try {
+    const { clip, type } = await story.speakStory(text, 'ar');
+    await useNarration(clip, type);
+    $('saadStatus').textContent = `جاهز ✓ (${Math.round(narration.duration)} ثانية). بيكون مع الفيلم.`;
+  } catch (e) {
+    $('saadStatus').textContent = e.message === 'offline'
+      ? 'صوت سعد مو شغال الحين (حطوا GEMINI_API_KEY في .env).' : 'ما قدرت أولّد الصوت. جرّب بعد شوي.';
+  }
+  storyBusy.on = false; updateStoryButtons();
+});
+
 $('cloneBtn').addEventListener('click', async () => {
   const text = $('storyText').value.trim();
   if (!text || !sampleWav) return;
+  ensureAudio();   // inside the click, so the browser lets the film play sound
   storyBusy.on = true; updateStoryButtons();
   $('voiceStatus').textContent = 'يحكي قصتك بصوتك… (2 إلى 4 دقايق، خلّ الصفحة مفتوحة)';
   try {
     const clip = await story.cloneStory(text, sampleWav, 'ar');
     sampleWav = null;   // done with the visitor's voice sample
-    const a = ensureAudio();
-    narration = await a.ctx.decodeAudioData(clip.slice(0));
-    $('voicePreview').src = URL.createObjectURL(new Blob([clip], { type: 'audio/wav' }));
-    $('voicePreview').hidden = false;
+    await useNarration(clip, 'audio/wav');
     $('voiceStatus').textContent = `جاهز ✓ (${Math.round(narration.duration)} ثانية). بيكون مع الفيلم. العينة انحذفت.`;
   } catch (e) {
     $('voiceStatus').textContent = e.message === 'offline'
@@ -737,11 +842,22 @@ $('cloneBtn').addEventListener('click', async () => {
   storyBusy.on = false; updateStoryButtons();
 });
 
+document.querySelectorAll('input[name="tell"]').forEach((r) => r.addEventListener('change', () => {
+  if (!r.checked) return;
+  stopRecording(true);
+  tellMode = r.value;
+  renderList();
+}));
+
 story.features().then((f) => {
   features = f;
+  const saad = document.querySelector('input[name="tell"][value="saad"]');
+  saad.disabled = !f.tts;   // Saad's voice needs scripts/server.py with a Gemini key
+  if (!f.tts) {
+    $('saadModeHint').textContent = 'يحتاج سيرفر المشروع (python scripts/server.py) مع مفتاح Gemini.';
+    if (saad.checked) { document.querySelector('input[name="tell"][value="text"]').checked = true; tellMode = 'text'; }
+  }
   $('storyConsent').disabled = !f.story;
-  $('voiceBox').hidden = !f.clone;
-  $('voiceOff').hidden = f.clone;
   renderList();
 });
 
