@@ -1,9 +1,9 @@
-// Shared by index.html (viewer) and film.js (trip film).
+// Shared by tour.html (viewer) and film.js (trip film).
 // Each pavilion lives in its own folder, web/scenes/<id>/, with:
 //   scene.splat (or scene.ply)  the 3D scan (scripts/clean_scene.py --splat makes the light .splat)
 //   tour.json                   the filmed path and its stops (scripts/camera_path.py)
-//   hotspots.json               the pieces and their explanations (index.html?edit)
-// The page shows one pavilion at a time: index.html?scene=<id>, the first one by default.
+//   hotspots.json               the pieces and their explanations (tour.html?edit)
+// The page shows one pavilion at a time: tour.html?scene=<id>, the first one by default.
 // The first pavilion (IMG_0920 only) is kept in data/hall/site_backup/, the rock in data/rock/.
 export const SCENES = [
   {
@@ -22,7 +22,7 @@ export const SCENES = [
   },
 ];
 
-// The kingdoms corridor on its own (web/scenes/hall): open it with index.html?scene=hall.
+// The kingdoms corridor on its own (web/scenes/hall): open it with tour.html?scene=hall.
 // Its last stop is part of the corner's tour (see extras above).
 export const OTHER_SCENES = [
   {

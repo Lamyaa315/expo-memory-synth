@@ -7,6 +7,9 @@ results/
 outputs/
 web/**/*.ply
 web/**/*.splat
+# the scene the deployed site shows: in Git LFS (.gitattributes)
+!web/scenes/corner/scene.splat
+!web/scenes/corner/kingdoms.splat
 web/**/*.ksplat
 web/audio/*.mp3
 !web/audio/.gitkeep
@@ -18,3 +21,4 @@ __pycache__/
 .env
 .ipynb_checkpoints/
 .venv-voice/
+

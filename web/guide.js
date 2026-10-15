@@ -30,6 +30,7 @@ export async function initGuide() {
   if (!available) return;
   $('guide').hidden = false;
   $('guideBtn').hidden = false;
+  $('askBtn').hidden = false;
   usePhoto();
   $('guideMic').hidden = !Recognition;
   try { spoken = localStorage.getItem(MODE_KEY) !== 'text'; } catch { /* private window */ }
@@ -45,7 +46,11 @@ export async function initGuide() {
     greet();
     setTimeout(() => $('guideBtn').classList.remove('waving'), 2200);
   }, 2500);
-  document.addEventListener('panel:close', () => { $('panel').classList.remove('guide-mode'); greet(); });
+  document.addEventListener('panel:close', () => {
+    $('panel').classList.remove('guide-mode');
+    document.body.classList.remove('asking');
+    greet();
+  });
 }
 
 function greet() {
@@ -82,6 +87,7 @@ function open() {
   const panel = $('panel');
   panel.classList.remove('closed', 'collapsed');
   panel.classList.add('guide-mode');
+  document.body.classList.add('asking');   // the tour's bars step aside, like the design's ask screen
   $('spotView').hidden = true;
   $('storyView').hidden = false;
   say('');
@@ -113,6 +119,18 @@ function labels() {
     ? (en ? 'Saad answers out loud. Tap for text only' : 'سعد يرد بالصوت. اضغط عشان يرد كتابة بس')
     : (en ? 'Saad answers in text. Tap to hear him' : 'سعد يرد كتابة. اضغط عشان تسمعه');
   $('replyMode').setAttribute('aria-pressed', String(spoken));
+  $('guideBubble').dataset.cta = en ? '✦ Tap Saad' : '✦ اضغط على سعد';
+  $('micHint').textContent = listening ? (en ? 'Saad is listening… tap again when you finish' : 'سعد يسمعك… اضغط مرة ثانية إذا خلصت')
+    : (en ? 'Tap and ask with your voice' : 'اضغط واسأل بصوتك');
+  // ready questions: one tap asks them
+  const chips = en
+    ? ['Which civilization is this from?', 'How old is it?', 'What does it look like elsewhere?']
+    : ['من أي حضارة هذا؟', 'كم عمره تقريباً؟', 'وش يشبهه في حضارات ثانية؟'];
+  $('guideChips').replaceChildren(...chips.map((q) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'chip', textContent: q });
+    b.addEventListener('click', () => send(q));
+    return b;
+  }));
   if (!$('panel').classList.contains('closed') && $('panel').classList.contains('guide-mode')) welcome();
   else if ($('guideBubble').classList.contains('on')) say(speakLang().greet);
 }
@@ -138,6 +156,7 @@ async function send(question) {
   const en = lang() === 'en';
   const speech = speakLang();
   busy = true;
+  try { localStorage.setItem('laqya-asked', String(+(localStorage.getItem('laqya-asked') || 0) + 1)); } catch {}   // the account's "asked Saad" stamp
   if (spoken) voice.unlock();   // still inside the tap: lets the spoken answer play when it arrives
   $('guideSend').disabled = true;
   $('guideInput').value = '';
@@ -202,10 +221,11 @@ function startListening() {
     $('guideInput').value = text;
     if (e.results[e.results.length - 1].isFinal) send(text);
   };
-  r.onend = r.onerror = () => { listening = null; $('guideMic').classList.remove('on'); };
+  r.onend = r.onerror = () => { listening = null; $('guideMic').classList.remove('on'); labels(); };
   voice.stop();
   listening = r;
   $('guideMic').classList.add('on');
+  labels();
   r.start();
 }
 

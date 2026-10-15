@@ -21,7 +21,9 @@
      "why_en": "Kufic marble carved in Al-Andalus and shipped to the kings of Gao."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_01.wav"
+   "audio": "scenes/corner/audio/story/stop_01.wav",
+   "title": "مدخل ركن النقوش",
+   "title_en": "Entrance"
   },
   {
    "say": "شوف هالحجر عن قرب، النقوش محفورة بالأزميل حرف حرف، وأغلبها بالخط الكوفي اللي يتميز بزواياه الحادة.",
@@ -43,7 +45,9 @@
      "why_en": "The same Kufic script on the African coast of the Red Sea."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_02.wav"
+   "audio": "scenes/corner/audio/story/stop_02.wav",
+   "title": "الخط الكوفي",
+   "title_en": "Kufic script"
   },
   {
    "say": "وهذا شاهد قبر، شف فوقه زخرفة كأنها محراب، وتحته اسم صاحبه ويوم وفاته وآيات من القرآن.",
@@ -65,7 +69,9 @@
      "why_en": "Egyptian Christians also framed the text under an arch, in Coptic."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_03.wav"
+   "audio": "scenes/corner/audio/story/stop_03.wav",
+   "title": "شاهد المحراب",
+   "title_en": "The niche tombstone"
   },
   {
    "say": "شف كيف شكل الحجر يختلف من شاهد لشاهد، فيه المستطيل وفيه اللي أطرافه مكسّرة، والزمن مخلّي أثره عليها.",
@@ -87,7 +93,9 @@
      "why_en": "Another shape: a rounded top instead of a rectangle."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_04.wav"
+   "audio": "scenes/corner/audio/story/stop_04.wav",
+   "title": "أشكال الشواهد",
+   "title_en": "Shapes of the stones"
   },
   {
    "say": "هالقطعة محطوطة داخل الفاترينة عشان تنحمى، وتقدر تشوف آثار النقش على وجهها لو قربت.",
@@ -109,7 +117,9 @@
      "why_en": "A standing stone recording the king's deeds in three scripts."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_05.wav"
+   "audio": "scenes/corner/audio/story/stop_05.wav",
+   "title": "الفاترينة",
+   "title_en": "The display case"
   },
   {
    "say": "وجنبها لوحة تشرح القطع، وهي من أهم الأشياء اللي نعرف منها تاريخ المكان وأهله.",
@@ -130,7 +140,9 @@
      "why_en": "One of the oldest written stones: the laws of Babylon."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_06.wav"
+   "audio": "scenes/corner/audio/story/stop_06.wav",
+   "title": "لوحة الشرح",
+   "title_en": "The label"
   },
   {
    "say": "وهنا حجرين منقوشين جنب بعض، وتقدر تشوف فيهم كيف الخط العربي تطوّر مع الزمن.",
@@ -152,7 +164,9 @@
      "why_en": "Another script from Arabia, carved on stones in Yeha."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_07.wav"
+   "audio": "scenes/corner/audio/story/stop_07.wav",
+   "title": "تطوّر الخط",
+   "title_en": "How the script changed"
   },
   {
    "say": "وهنا كسرات من نقوش وشواهد، لقوها في مواقع أثرية بالجزيرة العربية، وكل كسرة فيها جزء من حكاية. تعال نكمل للحجارة الواقفة.",
@@ -173,7 +187,9 @@
      "why_en": "Also found broken, and put back together piece by piece."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_08.wav"
+   "audio": "scenes/corner/audio/story/stop_08.wav",
+   "title": "الكسرات",
+   "title_en": "Fragments"
   },
   {
    "say": "وختامها مع الحجارة الواقفة! عليها رسوم حيوانات وكتابات صخرية تركها الناس اللي مروا من هنا قبل آلاف السنين، مع القوافل وتجارة البخور. وإذا عندك أي سؤال، اضغط علي.",
@@ -194,7 +210,9 @@
      "why_en": "Rock art of animals and people in the Sahara."
     }
    ],
-   "audio": "scenes/corner/audio/story/stop_09.wav"
+   "audio": "scenes/corner/audio/story/stop_09.wav",
+   "title": "الحجارة الواقفة",
+   "title_en": "Standing stones"
   }
  ]
 }

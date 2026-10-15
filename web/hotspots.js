@@ -1,6 +1,6 @@
 // Hotspots: numbered points pinned to objects in the 3D scene.
 // Visitors tap one -> the camera flies to it and a spoken explanation plays.
-// Open index.html?edit to place hotspots by clicking the scene, then download hotspots.json into the
+// Open tour.html?edit to place hotspots by clicking the scene, then download hotspots.json into the
 // pavilion's folder (web/scenes/<id>/).
 import * as THREE from 'three';
 import { askFor } from './ask.js';
@@ -264,7 +264,7 @@ function stopAudio() {
   if ($('spotListen')) setListenLabel();
 }
 
-// ---------- Editor (index.html?edit) ----------
+// ---------- Editor (tour.html?edit) ----------
 const FIELDS = { edTitle: 'title', edTitleEn: 'title_en', edText: 'text_ar', edTextEn: 'text_en', edFacts: 'facts' };
 
 function setupEditor() {

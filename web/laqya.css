@@ -1,0 +1,58 @@
+/* Lqya (لقيا): the app's own pages (home, map, account), from the team's Figma.
+   Warm off-white, white cards, olive for actions, plum and lilac for memories, peach and terracotta for the Expo. */
+:root {
+  --bg: #F7F7F5; --card: #FFFFFF; --olive: #4B553C; --olive-nav: #495139; --plum: #624C61; --lilac: #EEE2EC;
+  --peach: #F7DCD1; --terra: #8F5A43; --ink: #1F1F1A; --soft: #6E6E66; --line: #E2E0DA; --focus: #D9A23A;
+  --font: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1rem/1.75 var(--font); }
+a { color: inherit; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.page { max-width: 640px; margin: 0 auto; padding: 1rem 16px calc(6.5rem + env(safe-area-inset-bottom, 0px)); display: grid; gap: 1.1rem; }
+
+.app-top { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.brand { font-size: 1.5rem; font-weight: 700; color: var(--olive); letter-spacing: 0; text-decoration: none; }
+.round { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--card); border: 1px solid var(--line); color: var(--ink); cursor: pointer; text-decoration: none; padding: 0; }
+.round svg { width: 20px; height: 20px; }
+h1 { margin: 0; font-size: clamp(1.6rem, 6vw, 2rem); font-weight: 700; line-height: 1.4; text-wrap: balance; }
+h2 { margin: 0; font-size: 1.15rem; font-weight: 600; }
+.lead { margin: 0; color: var(--soft); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 1rem 1.1rem; }
+
+.btn { font: 600 .95rem var(--font); border-radius: 999px; padding: .7rem 1.2rem; cursor: pointer; text-decoration: none;
+  border: 1.5px solid var(--olive); background: transparent; color: var(--olive); display: inline-flex; align-items: center;
+  justify-content: center; gap: .4rem; }
+.btn.primary { background: var(--olive); color: #fff; }
+.btn.block { display: flex; width: 100%; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .45; cursor: default; }
+.tag { display: inline-block; font-size: .75rem; font-weight: 600; border-radius: 999px; padding: .1rem .6rem; }
+.tag.open { background: #E5E9DC; color: var(--olive); }
+.tag.soon { background: #EFEDE7; color: var(--soft); }
+
+/* bottom navigation (home, map, memories, account): a floating white pill, the current tab in an olive circle */
+.tabbar { position: fixed; z-index: 20; inset-inline: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); max-width: 520px; margin: 0 auto;
+  background: rgba(255, 255, 255, .94); border: 1px solid var(--line); border-radius: 999px; padding: 6px;
+  box-shadow: 0 10px 30px rgba(31, 31, 26, .12); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.tabbar ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; }
+.tabbar a { display: grid; justify-items: center; gap: 1px; text-decoration: none; color: var(--ink); font-size: .74rem;
+  font-weight: 500; padding: .45rem 0; border-radius: 999px; }
+.tabbar svg { width: 22px; height: 22px; }
+.tabbar .pip { display: grid; place-items: center; }
+.tabbar a[aria-current="page"] { background: var(--olive-nav); color: #fff; font-weight: 600; aspect-ratio: 1; width: min(76px, 100%);
+  margin: 0 auto; align-content: center; box-shadow: 0 6px 16px rgba(73, 81, 57, .35); }
+
+/* Wider screens: the app is designed for a phone, so it shows as one phone-wide column in the middle
+   (the 3D tour shows in the same column through frame.html). Fixed parts (screens, map, nav bar) line up with the column. */
+@media (min-width: 600px) {
+  :root { --col: 460px; --col-edge: calc(50% - var(--col) / 2); }
+  html { background: #E7E5DF; }
+  body { max-width: var(--col); margin: 0 auto; min-height: 100vh; box-shadow: 0 0 60px rgba(31, 31, 26, .10); }
+  .tabbar { left: calc(var(--col-edge) + 12px); right: calc(var(--col-edge) + 12px); max-width: none; }
+  .screen, .stage { left: var(--col-edge) !important; right: var(--col-edge) !important; }
+  .city { width: var(--col) !important; }
+  .search, .sheet { left: calc(var(--col-edge) + 12px) !important; right: calc(var(--col-edge) + 12px) !important; max-width: none !important; }
+  .toast { left: 50%; }
+}

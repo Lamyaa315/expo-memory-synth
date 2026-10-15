@@ -1,0 +1,11 @@
+.git
+.claude
+.env
+.venv*
+**/__pycache__
+**/*.ply
+web/scenes/hall
+web/film/*.mp4
+data
+notebooks
+promo
