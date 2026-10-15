@@ -7,11 +7,13 @@ import { initWalk } from './walk.js';
 import { sceneUrl, WALK, SCENES, SCENE } from './scene-config.js';
 import * as voice from './voice.js';
 import { speakLang } from './languages.js';
+import { STAMPS, earn, earned, stampDate } from './stamps.js';
 
 const FADE_MS = 350;          // dim, jump, brighten: gliding between stops crosses blurry, unfilmed space
 const SETTLE_SECONDS = 1.4;   // after the jump, ease in from a little further back
 const AUTO_PAUSE_MS = 3500;   // time at each stop during the automatic tour when there is nothing to say
 const AFTER_SPEECH_MS = 1200; // a breath after the guide finishes, before the next stop
+const STAMP_AFTER_MS = 2500;  // walking by hand: the stamp shows this long after reaching the last stop
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const $ = (id) => document.getElementById(id);
@@ -138,6 +140,13 @@ function go(i, { instant = false, onDone } = {}) {
     onDone?.();
   };
   render();
+  // the home page's "continue your trip" card picks up here
+  try {
+    const before = JSON.parse(localStorage.getItem('laqya-stop') || '{}');
+    const n = offset + index + 1;
+    localStorage.setItem('laqya-stop', JSON.stringify({ scene: SCENE.id, stop: index, n, max: Math.max(n, before.max || 0),
+      of: total || tour.stops.length, name: story?.stops?.[index]?.title || '' }));
+  } catch {}
   if (instant) {
     flyTo(viewer, view, { seconds: 0, onDone: arrived });
     return;
@@ -214,7 +223,7 @@ function startAuto({ fromHere = false } = {}) {
     if (!auto) return;
     if (index >= tour.stops.length - 1) {
       if (nextScene) leave(nextScene, 0, { keepAuto: true });   // carry on in the next pavilion
-      else stopAuto();
+      else { stopAuto(); finished(); }
       return;
     }
     go(index + 1, { onDone: dwell });
@@ -233,6 +242,46 @@ function startAuto({ fromHere = false } = {}) {
   }
 }
 
+// ---------- the end of the tour: the pavilion's stamp (Figma: account → "طوابعي") ----------
+let stampShown = false;
+document.addEventListener('tour:arrive', (e) => {
+  // walking by hand to the very last stop; the automatic tour stamps after the guide's last words instead
+  if (auto || nextScene || e.detail.index !== tour.stops.length - 1) return;
+  const at = e.detail.index;
+  setTimeout(() => { if (!auto && index === at) finished(); }, STAMP_AFTER_MS);
+});
+
+function finished() {
+  if (stampShown) return;   // once a visit
+  stampShown = true;
+  const first = earn('ksa');
+  const stamp = STAMPS.find((s) => s.id === 'ksa');
+  const count = Object.keys(earned()).length;
+  const en = lang() === 'en';
+  const box = document.createElement('div');
+  box.className = 'stamp-done';
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-labelledby', 'stampTitle');
+  box.innerHTML = `
+    <div class="stamp-card">
+      <p class="stamp-kicker">${en ? 'Tour complete 🎉' : 'أكملت الجولة 🎉'}</p>
+      <img class="stamp-img" src="${stamp.img}" alt="${en ? 'The Kingdom pavilion stamp' : 'طابع ' + stamp.name}">
+      <h2 id="stampTitle">${first ? (en ? 'You got the Kingdom pavilion stamp' : 'حصلت على طابع ' + stamp.name)
+        : (en ? 'This stamp is already yours' : 'طابع ' + stamp.name + ' عندك من قبل')}</h2>
+      <p class="stamp-sub">${stampDate(earned().ksa)} · ${en ? `stamp ${count} of ${STAMPS.length}` : `الطابع ${count.toLocaleString('ar-SA')} من ${STAMPS.length.toLocaleString('ar-SA')}`}</p>
+      <a class="stamp-btn primary" href="account.html">${en ? 'See my stamps' : 'شوف طوابعي'}</a>
+      <a class="stamp-btn" href="memory.html">${en ? 'Make a memory' : 'اصنع ذكرياتك'}</a>
+      <button type="button" class="stamp-close">${en ? 'Keep looking around' : 'كمّل التجوّل'}</button>
+    </div>`;
+  const close = () => box.remove();
+  box.querySelector('.stamp-close').addEventListener('click', close);
+  box.addEventListener('click', (ev) => { if (ev.target === box) close(); });
+  document.addEventListener('keydown', function esc(ev) { if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
+  document.body.appendChild(box);
+  box.querySelector('.stamp-btn.primary').focus({ preventScroll: true });
+}
+
 function stopAuto() {
   if (!auto) return;
   auto = false;
@@ -242,23 +291,77 @@ function stopAuto() {
   render();
 }
 
+const PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>';
+const PAUSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5.5" width="4" height="13" rx="1.2" fill="currentColor"/><rect x="13.5" y="5.5" width="4" height="13" rx="1.2" fill="currentColor"/></svg>';
+const label = (id, text) => { $(id).querySelector('.lb').textContent = text; };
+let showText = false;   // the "النص" button: the guide's words for this stop, written under the scene
+
+function stopName(i) {
+  const s = story?.stops?.[i];
+  return (lang() === 'en' ? s?.title_en || s?.title : s?.title) || '';
+}
+
 function render() {
   if (!tour) return;
   const en = lang() === 'en';
   const last = tour.stops.length - 1;
-  $('tourPrev').textContent = en ? '← Back' : '→ السابق';
-  $('tourNext').textContent = en ? 'Next →' : 'التالي ←';
+  label('tourPrev', en ? 'Back' : 'السابقة');
+  label('tourNext', en ? 'Next' : 'التالية');
+  label('textBtn', en ? 'Text' : 'النص');
+  label('askBtn', en ? 'Ask Saad' : 'اسأل سعد');
+  label('tourAuto', auto ? (en ? 'Pause' : 'إيقاف') : (en ? 'Play' : 'شغّل'));
+  $('tourAuto').querySelector('.ic').innerHTML = auto ? PAUSE : PLAY;
   $('tourPrev').disabled = index === 0 && !prevScene;
   $('tourNext').disabled = index === last && !nextScene;
   const n = offset + index + 1, of = total || last + 1;
-  $('tourCount').textContent = en ? `Stop ${n} of ${of}` : `محطة ${n} من ${of}`;
-  $('tourAuto').textContent = auto ? (en ? '■ Stop' : '■ إيقاف') : (en ? '▶ Walk me through' : '▶ جولة تلقائية');
+  const name = stopName(index);
+  $('tourTitle').textContent = en ? SCENE.title_en : SCENE.title;
+  $('tourCount').textContent = (en ? `Stop ${n} of ${of}` : `المحطة ${n} من ${of}`) + (name ? ` · ${name}` : '');
   $('tourAuto').setAttribute('aria-pressed', String(auto));
+  $('textBtn').setAttribute('aria-pressed', String(showText));
+  // one numbered dot per stop
+  const strip = $('stepper');
+  if (strip.querySelectorAll('button').length !== tour.stops.length) {
+    strip.replaceChildren();
+    tour.stops.forEach((_, i) => {
+      if (i) strip.appendChild(document.createElement('i'));
+      const b = Object.assign(document.createElement('button'), { type: 'button', textContent: String(i + 1) });
+      b.addEventListener('click', () => { stopAuto(); go(i); });
+      strip.appendChild(b);
+    });
+  }
+  strip.querySelectorAll('button').forEach((b, i) => {
+    b.setAttribute('aria-current', String(i === index));
+    b.setAttribute('aria-label', (en ? 'Stop ' : 'المحطة ') + (i + 1) + (stopName(i) ? ` · ${stopName(i)}` : ''));
+  });
+  strip.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  caption();
+}
+
+// The guide's words for the current stop, in the visitor's language
+async function caption() {
+  const card = $('captionCard');
+  if (!showText) { card.hidden = true; return; }
+  const i = index;
+  const code = speakLang().code;
+  let text = story?.stops?.[i]?.say || '';
+  if (code !== 'ar') text = (await translated(code))?.[i] || text;
+  if (i !== index || !showText) return;
+  card.textContent = text;
+  card.dir = /[\u0600-\u06FF]/.test(text) ? 'rtl' : 'ltr';
+  card.hidden = !text;
 }
 
 $('tourPrev').addEventListener('click', () => step(-1));
 $('tourNext').addEventListener('click', () => step(1));
 $('tourAuto').addEventListener('click', () => (auto ? stopAuto() : startAuto()));
+$('textBtn').addEventListener('click', () => { showText = !showText; render(); });
+$('askBtn').addEventListener('click', () => $('guideBtn').click());
+$('soundBtn').addEventListener('click', () => {
+  const on = $('soundBtn').getAttribute('aria-pressed') !== 'true';
+  $('soundBtn').setAttribute('aria-pressed', String(on));
+  voice.setMuted(!on);
+});
 document.addEventListener('langchange', () => {
   render();
   if (story && speakLang().code !== 'ar') translated(speakLang().code);   // ready before the next stop

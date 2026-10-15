@@ -51,7 +51,7 @@ def scene_narration(args):
 
 def hotspot_audio(args):
     path = Path(args.hotspots_file or f"web/scenes/{args.scene}/hotspots.json")
-    web = Path("web")                              # audio paths are relative to the page (web/index.html)
+    web = Path("web")                              # audio paths are relative to the page (web/tour.html)
     data = json.loads(path.read_text(encoding="utf-8"))
     out_dir = path.parent / "audio" / "hotspots"   # next to the pavilion's hotspots.json
     out_dir.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لقيا · أهلاً</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="laqya.css">
+<style>
+  /* The first visit, as the team's Figma draws it: the logo, two slides, then the welcome with sign-in choices */
+  body { overflow: hidden; }
+  .screen { position: fixed; inset: 0; display: grid; transition: opacity .5s ease; }
+  .screen[hidden] { display: none !important; }
+  .logo { font-weight: 700; color: var(--olive); line-height: 1; letter-spacing: 0; }
+  .logo span { color: var(--terra); }
+
+  /* the logo */
+  #splash { place-items: center; background: var(--bg); text-align: center; }
+  .splash-logo { width: min(62vw, 260px); height: auto; }
+  .slide header img { width: 92px; height: auto; }
+  #splash.out { opacity: 0; }
+
+  /* the two slides: a full photo, the words at the bottom */
+  .slide { background: #2A2722 center / cover; color: #fff; grid-template-rows: auto 1fr auto; isolation: isolate; }
+  .slide::before { content: ""; position: absolute; inset: 0; z-index: -1;
+    background: linear-gradient(180deg, rgba(247, 240, 230, .55) 0%, rgba(20, 18, 14, 0) 30%, rgba(20, 18, 14, .15) 50%, rgba(20, 18, 14, .85) 100%); }
+  .slide header { display: flex; justify-content: space-between; align-items: center; padding: calc(1rem + env(safe-area-inset-top, 0px)) 20px 0; }
+  .slide header .logo { font-size: 2rem; }
+  .skip { background: none; border: 0; color: var(--ink); font: 500 .95rem var(--font); cursor: pointer; padding: .4rem; }
+  .slide .words { grid-row: 3; max-width: 560px; width: 100%; margin: 0 auto; padding: 0 20px calc(1.4rem + env(safe-area-inset-bottom, 0px));
+    text-align: center; display: grid; gap: .6rem; }
+  .slide h1 { color: #fff; font-size: clamp(1.6rem, 6.5vw, 2.1rem); }
+  .slide p { margin: 0; opacity: .9; line-height: 1.85; }
+  .dots { display: flex; justify-content: center; gap: 6px; margin: .5rem 0 .3rem; }
+  .dots i { width: 7px; height: 7px; border-radius: 99px; background: rgba(255, 255, 255, .45); }
+  .dots i.on { width: 22px; background: #fff; }
+  .nav { display: flex; justify-content: space-between; gap: .6rem; }
+  .nav .btn { min-width: 96px; }
+  .nav .btn.ghost { border-color: rgba(255, 255, 255, .7); color: #fff; }
+  .nav .btn.primary { border-color: var(--olive); }
+
+  /* the welcome */
+  #welcome { background: var(--bg); overflow-y: auto; align-content: start; }
+  .w-hero { position: relative; height: 46vh; min-height: 260px; background: #3A352C url(img/arches.jpg) center 30% / cover; }
+  .w-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(247, 247, 245, 0) 55%, var(--bg)); }
+  .lang { position: absolute; z-index: 1; top: calc(1rem + env(safe-area-inset-top, 0px)); inset-inline-end: 16px;
+    font: 500 .85rem var(--font); background: rgba(255, 255, 255, .92); color: var(--ink); border: 0; border-radius: 999px; padding: .35rem .8rem; cursor: pointer; }
+  .w-body { max-width: 560px; width: 100%; margin: -2.2rem auto 0; position: relative; padding: 0 20px calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    display: grid; gap: .7rem; }
+  .w-body p.lead { line-height: 1.9; }
+  .or { display: flex; align-items: center; gap: .6rem; color: var(--soft); font-size: .82rem; margin: .2rem 0; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .social { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .social .btn { border-color: var(--line); color: var(--ink); background: var(--card); }
+  .social .btn.apple { background: #111; color: #fff; border-color: #111; }
+  .social svg { width: 20px; height: 20px; }
+  .guest { background: none; border: 0; font: 600 .95rem var(--font); color: var(--olive); cursor: pointer; padding: .5rem; justify-self: center; }
+  .terms { margin: 0; text-align: center; font-size: .74rem; color: var(--soft); }
+  .toast { position: fixed; z-index: 30; bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff; border-radius: 999px; padding: .5rem 1rem; font-size: .88rem; white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { .screen { transition: none; } }
+</style>
+</head>
+<body>
+<section class="screen" id="splash" aria-label="لقيا">
+  <img class="splash-logo" src="img/logo.png" alt="لقيا · Luqya, Expo 2030 Riyadh">
+</section>
+
+<section class="screen slide" id="slide1" style="background-image:url(img/onboard-1.jpg)" hidden aria-labelledby="t1">
+  <header><img src="img/logo.png" alt="لقيا"><button class="skip" type="button" data-go="welcome">تخطّي</button></header>
+  <div class="words">
+    <h1 id="t1">استكشف المعرض من أي مكان</h1>
+    <p>تنقّل بين الأجنحة والمعالم في تجربة افتراضية تفاعلية، وكأنك هناك.</p>
+    <div class="dots" aria-hidden="true"><i class="on"></i><i></i></div>
+    <div class="nav"><span></span><button class="btn primary" type="button" data-go="slide2">التالي</button></div>
+  </div>
+</section>
+
+<section class="screen slide" id="slide2" style="background-image:url(img/onboard-2.jpg)" hidden aria-labelledby="t2">
+  <header><img src="img/logo.png" alt="لقيا"><button class="skip" type="button" data-go="welcome">تخطّي</button></header>
+  <div class="words">
+    <h1 id="t2">ذكرياتك تستحق أن تُروى</h1>
+    <p>حوّل صورك ومقاطعك إلى رحلة سينمائية يرويها صوتك، واحتفظ بلحظاتك بطريقة استثنائية.</p>
+    <div class="dots" aria-hidden="true"><i></i><i class="on"></i></div>
+    <div class="nav"><button class="btn ghost" type="button" data-go="slide1">السابق</button><button class="btn primary" type="button" data-go="welcome">ابدأ</button></div>
+  </div>
+</section>
+
+<section class="screen" id="welcome" hidden aria-labelledby="t3">
+  <div class="w-hero"><button class="lang" type="button" id="langBtn">English 🌐</button></div>
+  <div class="w-body">
+    <h1 id="t3">كل زاوية تحكي حكاية</h1>
+    <p class="lead">العالم كله جاي الرياض… وأنت أول الحاضرين! خطّط زيارتك، اكتشف الأجنحة، واحفظ ذكرياتك في مكان واحد.</p>
+    <a class="btn primary block" href="account.html?signup=1&next=home">إنشاء حساب</a>
+    <a class="btn block" href="account.html?next=home">تسجيل دخول</a>
+    <p class="or">أو كمّل بـ</p>
+    <div class="social">
+      <button class="btn" type="button" data-soon>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 01-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.5l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0012 22z"/><path fill="#FBBC05" d="M6.4 13.9a6 6 0 010-3.8V7.5H3.1a10 10 0 000 9z"/><path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 003.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z"/></svg>
+        Google</button>
+      <button class="btn apple" type="button" data-soon>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.5 2-3.6a4.3 4.3 0 00-3.4-1.8c-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8a4.5 4.5 0 00-3.8 2.3c-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3a10 10 0 001.3-2.6 4 4 0 01-2.5-3.7zM14.1 5.5A4 4 0 0015 2.6a4 4 0 00-2.6 1.4 3.8 3.8 0 00-1 2.8 3.4 3.4 0 002.7-1.3z"/></svg>
+        Apple</button>
+    </div>
+    <button class="guest" type="button" id="guestBtn">الدخول كزائر</button>
+    <p class="terms">بالمتابعة توافق على الشروط وسياسة الخصوصية</p>
+  </div>
+</section>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script type="module">
+import { rememberLang, savedLang } from './languages.js';
+
+const $ = (id) => document.getElementById(id);
+const done = () => { try { localStorage.setItem('laqya-onboarded', '1'); } catch {} };
+const quick = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function go(id) {
+  for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id;
+  if (id === 'welcome') done();   // seen the slides: next time the app opens at home
+  $(id).querySelector('h1, button, a')?.focus({ preventScroll: true });
+}
+document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
+
+// the logo first, then the slides (straight to the welcome if they were seen before)
+let seen = false;
+try { seen = localStorage.getItem('laqya-onboarded') === '1'; } catch {}
+setTimeout(() => { $('splash').classList.add('out'); setTimeout(() => go(seen ? 'welcome' : 'slide1'), quick ? 0 : 450); }, quick ? 600 : 1600);
+
+// Saad's language: the welcome's English button (the app's own words stay Arabic, Saad speaks English)
+function langLabel() { $('langBtn').textContent = savedLang() === 'en' ? 'العربية 🌐' : 'English 🌐'; }
+$('langBtn').addEventListener('click', () => { rememberLang(savedLang() === 'en' ? 'ar' : 'en'); langLabel(); toast(savedLang() === 'en' ? 'Saad will speak English' : 'سعد بيتكلم عربي'); });
+langLabel();
+
+$('guestBtn').addEventListener('click', () => {
+  try { localStorage.setItem('laqya-user', JSON.stringify({ name: 'زائر', guest: true })); } catch {}
+  location.href = 'home.html';
+});
+
+// Google and Apple are drawn, not wired (no real accounts in this version)
+let t;
+function toast(text) { $('toast').textContent = text; $('toast').hidden = false; clearTimeout(t); t = setTimeout(() => { $('toast').hidden = true; }, 2200); }
+document.querySelectorAll('[data-soon]').forEach((b) => b.addEventListener('click', () => toast('الدخول بـ Google وApple قريباً')));
+</script>
+</body>
+</html>

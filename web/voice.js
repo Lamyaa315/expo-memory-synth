@@ -14,6 +14,14 @@ let onBlocked = null;   // called when the browser refuses to play (no recent ta
 // A tiny silent clip: playing it during a tap lets the page play the real answer later, when it arrives
 // (browsers only allow sound shortly after the visitor touches the page)
 const SILENCE = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+// The page's sound button: everything keeps running (the tour still waits for each line), just silent
+let muted = false;
+export function setMuted(on) {
+  muted = on;
+  player.muted = on;
+  if (on && 'speechSynthesis' in window) speechSynthesis.cancel();
+}
+
 export function unlock() {
   try {
     player.src = SILENCE;
@@ -136,7 +144,7 @@ function bestVoice(lang) {
 // The last resort when the server's voice can't speak. Without a male voice for the language he stays
 // silent (his answer is still written in the chat) rather than speak in someone else's voice.
 function browserSpeak(text, t, lang) {
-  if (!('speechSynthesis' in window)) return finish(t);
+  if (muted || !('speechSynthesis' in window)) return finish(t);
   const u = new SpeechSynthesisUtterance(text);
   u.lang = byCode(lang)?.speech || (isArabic(text) ? 'ar-SA' : 'en-US');
   const voice = bestVoice(u.lang.split('-')[0].toLowerCase());

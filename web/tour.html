@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>
+  // wide screens: the tour opens in a phone-wide column like the rest of the app (frame.html); the hotspot editor stays full size
+  if (window.self === window.top && matchMedia('(min-width: 600px)').matches && !/[?&]edit/.test(location.search)) {
+    location.replace('frame.html#' + encodeURIComponent('tour.html' + location.search));
+  }
+</script>
+<title>لقيا · الجولة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Design tokens: Najdi night + painted-door teal */
+  :root {
+    --night: #1D2440;     /* stage background */
+    --stone: #E6E3DA;     /* panel surface */
+    --ink: #1D2440;       /* text on stone */
+    --ink-soft: #545B78;  /* secondary text */
+    --teal: #2F7F86;      /* primary action */
+    --saffron: #D9A23A;   /* freshness signal */
+    --font: "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--night); font-family: var(--font); color: var(--ink); }
+  body { overflow: hidden; }
+
+  /* Warm, dim backdrop like museum lighting (the 3D canvas is transparent), darker towards the edges */
+  #stage {
+    position: fixed; inset: 0;
+    background: radial-gradient(120% 95% at 50% 38%, #3d352b 0%, #221d18 55%, #110e0c 100%);
+  }
+  #stage::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(85% 75% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, .5) 100%);
+  }
+  #stage canvas { display: block; touch-action: none; }
+
+  .empty {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    color: var(--stone); text-align: center; padding: 2rem; pointer-events: none;
+  }
+  .empty p { max-width: 28ch; line-height: 1.8; font-weight: 300; margin: 0; }
+  .empty[hidden] { display: none; }
+
+  .panel {
+    position: fixed; z-index: 10;
+    inset-inline: 0; bottom: 0;
+    background: var(--stone);
+    border-radius: 20px 20px 0 0;
+    padding: 1.1rem 1.25rem calc(1.1rem + env(safe-area-inset-bottom, 0px));
+    max-height: 62vh; overflow-y: auto;
+    box-shadow: 0 -8px 32px rgba(10, 14, 30, .35);
+    transition: transform .35s ease;
+  }
+  .panel.closed { display: none; }
+  .panel-close {
+    position: absolute; top: .55rem; inset-inline-end: .6rem; width: 2rem; height: 2rem; border-radius: 50%;
+    border: 0; background: rgba(29, 36, 64, .08); color: var(--ink); font: 600 1.1rem/1 var(--font); cursor: pointer;
+  }
+  .panel-close:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .scene-switch { position: fixed; z-index: 9; top: 1.25rem; inset-inline-start: 1.25rem; width: 300px;
+    margin: 0; background: rgba(230, 227, 218, .92); box-shadow: 0 6px 22px rgba(0, 0, 0, .3); }
+  @media (max-width: 899px) {
+    .scene-switch { top: auto; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); inset-inline-start: 50%;
+      transform: translateX(50%); width: min(300px, calc(100vw - 32px)); }
+    [dir="ltr"] .scene-switch { transform: translateX(-50%); }
+  }
+  .panel.collapsed { transform: translateY(calc(100% - 4.4rem - env(safe-area-inset-bottom, 0px))); }
+  .panel.spot-mode { max-height: 42vh; }
+
+  @media (min-width: 900px) {
+    .panel {
+      inset-inline-start: 1.5rem; inset-inline-end: auto;
+      top: 1.5rem; bottom: auto; width: 380px; max-height: calc(100vh - 3rem);
+      border-radius: 14px;
+    }
+    .panel.spot-mode { max-height: calc(100vh - 3rem); }
+    .panel.collapsed { transform: none; }
+    .handle { display: none; }
+  }
+
+  .handle {
+    display: block; width: 100%; background: none; border: 0; padding: 0 0 .6rem; cursor: pointer;
+  }
+  .handle span { display: block; width: 44px; height: 5px; border-radius: 3px; background: #B9B5A8; margin: 0 auto; }
+
+  .fresh { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--ink-soft); margin: 0 0 .35rem; }
+  .fresh i { width: 8px; height: 8px; border-radius: 50%; background: var(--saffron); flex: none; }
+
+  h1 { font-size: 1.45rem; font-weight: 600; line-height: 1.35; margin: 0 0 .75rem; }
+  .narration { font-size: 1rem; line-height: 1.9; font-weight: 300; margin: 0 0 1rem; max-width: 60ch; }
+  .narration[dir="ltr"] { line-height: 1.7; }
+
+  .highlights { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1.1rem; padding: 0; list-style: none; }
+  .highlights li { font-size: .85rem; padding: .3rem .7rem; border: 1px solid #C9C4B5; border-radius: 999px; }
+
+  /* Pavilion picker */
+  .scenes { display: flex; gap: .4rem; margin: 0 0 .8rem; padding: .25rem; background: #D9D5C9; border-radius: 12px; }
+  .scenes button {
+    flex: 1 1 0; font: inherit; font-size: .9rem; padding: .5rem .6rem; border: 0; border-radius: 9px;
+    background: transparent; color: var(--ink-soft); cursor: pointer;
+  }
+  .scenes[hidden] { display: none; }
+  .scenes button[aria-current="true"] { background: var(--stone); color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(29, 36, 64, .18); }
+  .scenes button:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+
+  .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+  button.primary, button.ghost, label.ghost {
+    font: inherit; font-size: .95rem; border-radius: 10px; padding: .7rem 1.1rem; cursor: pointer;
+  }
+  button.primary { background: var(--teal); color: #fff; border: 0; font-weight: 600; flex: 1 1 auto; }
+  button.ghost, label.ghost { background: transparent; color: var(--ink); border: 1px solid #B9B5A8; }
+  button:focus-visible, label.ghost:focus-within { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  #fileInput { position: absolute; opacity: 0; width: 1px; height: 1px; }
+
+  .film-link { display: block; margin: .9rem 0 0; color: var(--teal); font-weight: 600; font-size: .95rem; text-decoration: none; }
+  .film-link:hover { text-decoration: underline; }
+  .film-link:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; border-radius: 4px; }
+
+  .hint { font-size: .8rem; color: var(--ink-soft); margin: .9rem 0 0; line-height: 1.6; }
+
+  .tour-fade { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: #110e0c; opacity: 0; transition: opacity .35s ease; }
+  .tour-fade.on { opacity: 1; }
+  /* Look-alikes from other cultures */
+  .culture {
+    position: fixed; z-index: 8; top: 1.25rem; inset-inline-start: 1.25rem; width: 300px; max-width: calc(100vw - 32px);
+    background: rgba(230, 227, 218, .95); color: var(--ink); border-radius: 14px; padding: .8rem .9rem .6rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    opacity: 0; transform: translateY(-8px); transition: opacity .4s ease, transform .4s ease; pointer-events: none;
+  }
+  .culture.on { opacity: 1; transform: none; pointer-events: auto; }
+  .culture h2 { font-size: .92rem; margin: 0 0 .55rem; padding-inline: 1.8rem; }   /* room for × on either side (English titles run the other way) */
+  .culture-close { position: absolute; top: .45rem; inset-inline-end: .5rem; width: 1.7rem; height: 1.7rem; border-radius: 50%;
+    border: 0; background: rgba(29, 36, 64, .08); color: var(--ink); font: 600 1rem/1 var(--font); cursor: pointer; }
+  .culture-list { display: flex; flex-direction: column; gap: .5rem; }
+  .culture-item { display: flex; gap: .6rem; align-items: center; color: inherit; text-decoration: none;
+    background: #F4F2EC; border-radius: 10px; padding: .4rem; }
+  .culture-item:hover { background: #ECE8DE; }
+  .culture-item:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .culture-item img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex: none; background: #DDD8CB; }
+  .culture-item span { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+  .culture-item b { font-size: .86rem; }
+  .culture-item small { font-size: .78rem; line-height: 1.5; color: var(--ink-soft); }
+  .culture-credit { font-size: .7rem; color: var(--ink-soft); margin: .45rem 0 0; }
+  @media (max-width: 899px) {
+    /* phones: a slim card at the bottom, the tour bar is at the top */
+    .culture { top: auto; bottom: calc(.75rem + env(safe-area-inset-bottom, 0px)); inset-inline-start: 50%;
+      transform: translate(50%, 8px); width: min(340px, calc(100vw - 24px)); padding: .6rem .7rem .45rem; }
+    [dir="ltr"] .culture { transform: translate(-50%, 8px); }
+    .culture.on { transform: translate(50%, 0); }
+    [dir="ltr"] .culture.on { transform: translate(-50%, 0); }
+    .culture-list { flex-direction: row; overflow-x: auto; }
+    .culture-item { flex: 0 0 85%; }
+    .culture-item img { width: 52px; height: 52px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .culture { transition: none; } }
+  .scene-toast {
+    position: fixed; z-index: 8; top: 42%; left: 50%; transform: translate(-50%, 8px); margin: 0;
+    font: 600 1.6rem/1.3 var(--font); color: var(--stone); text-shadow: 0 2px 16px rgba(0, 0, 0, .7);
+    opacity: 0; transition: opacity .5s ease, transform .5s ease; pointer-events: none; white-space: nowrap;
+  }
+  .scene-toast.on { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { .tour-fade { transition: none; } }
+
+  /* Walking */
+  .walk-hint {
+    position: fixed; z-index: 8; left: 50%; bottom: 5.4rem; transform: translateX(-50%); margin: 0;
+    padding: .45rem .9rem; border-radius: 999px; font-size: .85rem; white-space: nowrap;
+    color: var(--stone); background: rgba(20, 17, 14, .6); pointer-events: none; transition: opacity .8s ease;
+  }
+  .walk-hint.fade { opacity: 0; }
+  .walk-hint[hidden], .walk-pad[hidden] { display: none; }
+  .walk-pad {
+    position: fixed; z-index: 8; left: 16px; bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 48px); gap: 4px;
+    direction: ltr;
+  }
+  .walk-pad button {
+    border: 0; border-radius: 12px; font-size: 1.1rem; color: var(--stone); background: rgba(20, 17, 14, .6);
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .walk-pad button:active { background: var(--teal); }
+  .walk-pad [data-move="fwd"] { grid-area: 1 / 2; }
+  .walk-pad [data-move="left"] { grid-area: 2 / 1; }
+  .walk-pad [data-move="right"] { grid-area: 2 / 3; }
+  .walk-pad [data-move="back"] { grid-area: 3 / 2; }
+  @media (max-width: 899px) { .walk-hint { top: 70px; bottom: auto; } }
+
+  /* Corridor tour bar */
+  .tour {
+    position: fixed; z-index: 9; left: 50%; bottom: 1.5rem; transform: translateX(-50%);
+    display: flex; align-items: center; gap: .35rem; padding: .4rem;
+    background: rgba(20, 17, 14, .72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(230, 227, 218, .18); border-radius: 999px; color: var(--stone);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .35); max-width: calc(100vw - 32px);
+  }
+  .tour[hidden] { display: none; }
+  .tour button {
+    font: inherit; font-size: .9rem; color: var(--stone); background: rgba(230, 227, 218, .1);
+    border: 0; border-radius: 999px; padding: .55rem .9rem; cursor: pointer; white-space: nowrap;
+  }
+  .tour button:hover:not(:disabled) { background: rgba(230, 227, 218, .2); }
+  .tour button:disabled { opacity: .35; cursor: default; }
+  .tour button:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .tour .tour-auto { background: var(--teal); color: #fff; font-weight: 600; }
+  .tour .tour-auto[aria-pressed="true"] { background: var(--saffron); color: var(--ink); }
+  .tour-count { font-size: .85rem; padding: 0 .4rem; white-space: nowrap; opacity: .9; }
+  @media (max-width: 899px) {
+    /* The bottom sheet is at the bottom on phones */
+    .tour { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; }
+    .tour button { padding: .5rem .7rem; font-size: .85rem; }
+  }
+  @media (max-width: 440px) {
+    .tour { gap: .2rem; padding: .3rem; }
+    .tour button { padding: .45rem .55rem; font-size: .78rem; }
+    .tour-count { font-size: .74rem; padding: 0 .15rem; }
+  }
+
+  /* Hotspot markers */
+  .spots { position: fixed; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+  .spot {
+    position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer;
+    width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff;
+    background: var(--teal); color: #fff; font: 600 .9rem var(--font);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .4);
+    display: grid; place-items: center;
+  }
+  .spot::after {
+    content: ""; position: absolute; inset: -6px; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .7); animation: pulse 2s ease-out infinite;
+  }
+  .spot.active { background: var(--saffron); color: var(--ink); }
+  .spot:focus-visible { outline: 3px solid var(--saffron); outline-offset: 3px; }
+  .spot[hidden] { display: none; }
+  @keyframes pulse { from { transform: scale(.8); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+
+  /* Hotspot explanation */
+  button.link { font: inherit; font-size: .9rem; background: none; border: 0; padding: 0; color: var(--teal); cursor: pointer; margin: 0 0 .6rem; }
+  button.link:hover { text-decoration: underline; }
+  button.link:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .spot-title { display: flex; align-items: center; gap: .6rem; }
+  .num {
+    flex: none; display: inline-grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 50%;
+    background: var(--saffron); color: var(--ink); font-size: .95rem; font-weight: 600;
+  }
+
+  /* The tour guide: a Saudi guide standing in the corner of the scene; tap him to ask (guide.js) */
+  .guide {
+    position: fixed; z-index: 9; bottom: .4rem; inset-inline-end: 1.25rem; width: 100px;
+    padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .guide[hidden] { display: none; }
+  .guide svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .45));
+    animation: guide-idle 4s ease-in-out infinite; transform-origin: 50% 100%; }
+  .guide:focus-visible { outline: 3px solid var(--saffron); outline-offset: 4px; border-radius: 16px; }
+  .guide .mouth-open { display: none; }
+  .guide.speaking .mouth-closed { display: none; }
+  .guide.speaking .mouth-open { display: inline; animation: guide-talk .32s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+  .guide.speaking svg { animation: guide-speak 1.6s ease-in-out infinite; }
+  .guide .hand { transform-box: view-box; transform-origin: 86px 92px; }
+  .guide.waving .hand { animation: guide-wave .5s ease-in-out 4 alternate; }
+  .guide-bubble {
+    position: absolute; bottom: calc(100% - .5rem); inset-inline-end: 62%; width: max-content; max-width: 210px;
+    background: var(--stone); color: var(--ink); font: 600 .88rem/1.5 var(--font); text-align: start;
+    padding: .5rem .8rem; border-radius: 14px 14px 14px 4px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+    opacity: 0; transform: translateY(6px); transition: opacity .25s ease, transform .25s ease; pointer-events: none;
+  }
+  .guide-bubble.on { opacity: 1; transform: none; }
+  .guide.has-photo svg { display: none; }
+  .guide.has-photo { width: 84px; }
+  @media (max-width: 899px) { .guide.has-photo { width: 50px; } }
+  .guide-photo { display: block; width: 100%; height: auto; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .45));
+    animation: guide-idle 4s ease-in-out infinite; transform-origin: 50% 100%; }
+  .guide-photo[hidden] { display: none; }
+  .guide.speaking .guide-photo { animation: guide-speak 1.6s ease-in-out infinite; }
+  .guide.waving .guide-photo { animation: guide-hello .45s ease-in-out 4 alternate; }
+  /* Sound waves by his head while he speaks (a picture can't move its mouth) */
+  .guide-waves { position: absolute; top: 6%; inset-inline-start: 78%; width: 26px; height: 26px; display: none; }
+  .guide.speaking.has-photo .guide-waves { display: block; }
+  .guide-waves i { position: absolute; inset: 0; border: 2px solid var(--saffron); border-radius: 50%;
+    border-inline-start-color: transparent; border-bottom-color: transparent; opacity: 0; animation: guide-wave-out 1.2s ease-out infinite; }
+  .guide-waves i:nth-child(2) { animation-delay: .4s; }
+  .guide-waves i:nth-child(3) { animation-delay: .8s; }
+  @keyframes guide-wave-out { from { transform: scale(.4); opacity: .9; } to { transform: scale(1.4); opacity: 0; } }
+  @keyframes guide-hello { from { transform: rotate(0); } to { transform: rotate(-3deg) translateY(-3px); } }
+  @keyframes guide-idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes guide-speak { 0%, 100% { transform: translateY(0) rotate(0); } 25% { transform: translateY(-2px) rotate(-1deg); } 75% { transform: translateY(-1px) rotate(1deg); } }
+  @keyframes guide-talk { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
+  @keyframes guide-wave { from { transform: rotate(0); } to { transform: rotate(-28deg); } }
+  @media (max-width: 899px) {
+    /* The sheet covers the bottom on phones: he stands under the tour bar */
+    .guide { top: calc(62px + env(safe-area-inset-top, 0px)); bottom: auto; inset-inline-end: .5rem; width: 58px; }
+    .guide-bubble { bottom: auto; top: 52px; inset-inline-end: 100%; max-width: 170px; font-size: .8rem; }   /* under the language list */
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .guide svg, .guide.speaking svg, .guide.waving .hand, .guide-photo, .guide.speaking .guide-photo,
+    .guide.waving .guide-photo, .guide-waves i { animation: none; }
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 0 .6rem; }
+  .chip { font: inherit; font-size: .82rem; padding: .35rem .7rem; border-radius: 999px; cursor: pointer;
+    background: #F4F2EC; color: var(--teal); border: 1px solid #C9C4B5; }
+  .chip:hover { background: #EAE6DC; }
+  .chip:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .listen-btn { align-self: flex-end; font-size: .85rem !important; padding: .4rem .8rem !important; }
+  .demo-note { font-size: .78rem; color: #8A5A12; background: #F3E7CF; border-radius: 8px; padding: .35rem .6rem; margin: 0 0 .6rem; }
+
+  /* Saad's chat: when he is opened, the panel shows only the conversation */
+  .panel.guide-mode #storyView > :not(#guide) { display: none; }
+  .panel.guide-mode #guide { margin-top: 0; padding-top: 0; border-top: 0; }
+  .guide-head { display: flex; align-items: center; gap: .6rem; margin: 0 0 .7rem; padding-inline-end: 2.2rem; }
+  .guide-head > div { flex: 1 1 auto; min-width: 0; }
+  .guide-head h2 { margin: 0; font-size: 1.05rem; }
+  .guide-head .demo-note { margin: .15rem 0 0; padding: .1rem .45rem; display: inline-block; font-size: .7rem; }
+  .guide-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: 50% 12%;
+    background: #DDD8CB; flex: none; }
+  .reply-mode { flex: none; font-size: .8rem !important; padding: .35rem .7rem !important; white-space: nowrap; }
+  .lang-pick {
+    position: fixed; z-index: 9; top: 1.25rem; inset-inline-end: 1.25rem; display: flex; align-items: center; gap: .3rem;
+    padding: .25rem .3rem .25rem .6rem; border-radius: 999px; color: var(--stone);
+    background: rgba(20, 17, 14, .72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(230, 227, 218, .18);
+  }
+  .lang-pick select { font: inherit; font-size: .88rem; color: var(--stone); background: transparent; border: 0;
+    padding: .3rem .2rem; cursor: pointer; max-width: 9.5rem; }
+  .lang-pick select option { color: #1d2440; }
+  .lang-pick:focus-within { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  @media (max-width: 899px) {
+    .lang-pick { top: calc(62px + env(safe-area-inset-top, 0px)); inset-inline-end: auto; inset-inline-start: .5rem; }
+    .lang-pick select { max-width: 7.5rem; font-size: .82rem; }
+  }
+
+  /* Questions */
+  .ask { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid #C9C4B5; }
+  .ask h2 { font-size: 1rem; margin: 0 0 .6rem; }
+  .chat { display: flex; flex-direction: column; gap: .45rem; margin-bottom: .7rem; }
+  .msg { max-width: 88%; padding: .55rem .8rem; border-radius: 14px; line-height: 1.7; font-size: .93rem; white-space: pre-wrap; }
+  .msg.user { align-self: flex-start; background: var(--teal); color: #fff; border-end-start-radius: 4px; }
+  .msg.assistant { align-self: flex-end; background: #F4F2EC; border: 1px solid #DDD8CB; border-end-end-radius: 4px; }
+  .msg.pending { color: var(--ink-soft); }
+  .msg.error { color: #A1442F; }
+  .ask-form { display: flex; gap: .4rem; }
+  .ask-form input {
+    flex: 1 1 auto; min-width: 0; font: inherit; font-size: .95rem; padding: .6rem .75rem; color: var(--ink);
+    background: #F4F2EC; border: 1px solid #C9C4B5; border-radius: 10px;
+  }
+  .ask-form input:focus { outline: 3px solid var(--saffron); outline-offset: 1px; }
+  .ask-form button.primary { flex: none; }
+  .mic { flex: none; padding: .6rem .8rem !important; }
+  .mic.on { background: #A1442F; color: #fff; border-color: #A1442F; }
+
+  /* Editor */
+  #editor h1 { margin-bottom: .3rem; }
+  .ed-help { margin-top: 0; }
+  .ed-note { font-size: .85rem; background: #F4EBD6; border-radius: 8px; padding: .5rem .7rem; line-height: 1.7; }
+  .ed-note .link { margin: 0; font-size: .85rem; }
+  .ed-list { list-style: none; padding: 0; margin: .8rem 0 0; display: grid; gap: .35rem; }
+  .ed-item {
+    width: 100%; display: flex; align-items: center; gap: .6rem; text-align: start; cursor: pointer;
+    font: inherit; font-size: .9rem; color: var(--ink); background: #F4F2EC; border: 1px solid transparent;
+    border-radius: 10px; padding: .45rem .6rem;
+  }
+  .ed-item .num { width: 1.5rem; height: 1.5rem; font-size: .8rem; background: var(--teal); color: #fff; }
+  .ed-item .state { margin-inline-start: auto; font-size: .75rem; color: var(--ink-soft); }
+  .ed-item.active { border-color: var(--saffron); }
+  .ed-item:focus-visible { outline: 3px solid var(--saffron); }
+  .ed-form { margin-top: 1rem; padding-top: .9rem; border-top: 1px solid #C9C4B5; }
+  .ed-form h2 { font-size: 1.05rem; margin: 0 0 .4rem; }
+  .ed-form label { display: block; font-size: .8rem; font-weight: 600; margin: .7rem 0 .25rem; }
+  .ed-form input, .ed-form textarea {
+    width: 100%; font: inherit; font-size: .95rem; padding: .5rem .65rem; color: var(--ink);
+    background: #F4F2EC; border: 1px solid #C9C4B5; border-radius: 8px; resize: vertical;
+  }
+  .ed-form input:focus, .ed-form textarea:focus { outline: 3px solid var(--saffron); outline-offset: 1px; }
+  .ed-form .actions { margin-top: .9rem; }
+  .ed-auto { background: #F4EBD6; border-radius: 10px; padding: .6rem .8rem .8rem; margin-top: .5rem; }
+  .ed-auto .hint { margin: 0 0 .2rem; }
+  .ed-file { display: inline-flex; margin-top: .7rem; font-size: .85rem; padding: .5rem .8rem; border-radius: 8px; cursor: pointer; }
+  .ed-file input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .ed-file:focus-within { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .ed-file-name { font-size: .8rem; color: var(--ink-soft); margin-inline-start: .5rem; }
+  .ed-write { display: block; width: 100%; margin-top: .7rem; }
+  .ed-status { font-size: .85rem; color: var(--teal); min-height: 1.4em; margin: .8rem 0 .4rem; }
+  button.danger { color: #A1442F; border-color: #D9B3A8; }
+  button:disabled { opacity: .45; cursor: default; }
+
+  @media (prefers-reduced-motion: reduce) { .panel { transition: none; } .spot::after { animation: none; } }
+
+  /* ===== Lqya (لقيا) design, from the team's Figma: warm off-white, olive, plum, terracotta; dark glass over the scene ===== */
+  :root {
+    --lq-bg: #F7F7F5; --lq-card: #FFFFFF; --lq-olive: #4B553C; --lq-olive-2: #5E6A4C; --lq-plum: #624C61;
+    --lq-lilac: #EEE2EC; --lq-terra: #8F5A43; --lq-peach: #F7DCD1; --lq-ink: #1F1F1A; --lq-soft: #6E6E66;
+    --lq-glass: rgba(34, 32, 26, .55); --lq-glass-line: rgba(255, 255, 255, .16);
+    --lq-font: "IBM Plex Sans Arabic", "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+    --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
+  }
+  html, body { font-family: var(--lq-font); }
+  .glass { background: var(--lq-glass); color: #fff; border: 1px solid var(--lq-glass-line);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); }
+  .tour-ui[hidden], .caption[hidden], #askBtn[hidden] { display: none !important; }
+  .topbar { position: fixed; z-index: 12; top: calc(12px + var(--safe-t)); inset-inline: 12px; display: flex;
+    align-items: center; justify-content: space-between; gap: 8px; pointer-events: none; }
+  .topbar > * { pointer-events: auto; }
+  .round { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+    text-decoration: none; padding: 0; flex: none; }
+  .round svg { width: 20px; height: 20px; }
+  #soundBtn[aria-pressed="false"] .wave { display: none; }
+  .pill { border-radius: 18px; padding: .35rem 1rem; text-align: center; display: grid; line-height: 1.4; min-width: 0; }
+  .pill b { font-size: .92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill span { font-size: .74rem; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-actions { display: flex; gap: 8px; align-items: center; }
+  .lang-pick { position: static; inset: auto; height: 44px; padding: 0 .5rem 0 .6rem; border-radius: 22px; }
+  .lang-pick select { color: #fff; max-width: 6.5rem; }
+  .stepper { position: fixed; z-index: 11; bottom: calc(108px + var(--safe-b)); left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 999px; max-width: calc(100vw - 24px);
+    overflow-x: auto; scrollbar-width: none; }
+  .stepper button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .45);
+    background: transparent; color: #fff; font: 600 .8rem var(--lq-font); flex: none; cursor: pointer; padding: 0; }
+  .stepper button[aria-current="true"] { background: #fff; color: var(--lq-ink); border-color: #fff; }
+  .stepper button:focus-visible, .ctrl button:focus-visible, .round:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  .stepper i { width: 10px; height: 1px; background: rgba(255, 255, 255, .45); flex: none; }
+  .ctrl { position: fixed; z-index: 11; bottom: calc(14px + var(--safe-b)); left: 50%; transform: translateX(-50%);
+    display: flex; align-items: flex-end; gap: 4px; padding: 10px 12px; border-radius: 28px; max-width: calc(100vw - 24px); }
+  .ctrl button { display: grid; justify-items: center; gap: 4px; background: none; border: 0; color: #fff;
+    font: 500 .72rem var(--lq-font); cursor: pointer; min-width: 56px; padding: 0; }
+  .ctrl .ic { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+    background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .22); }
+  .ctrl .ic svg { width: 20px; height: 20px; }
+  .ctrl .play .ic { width: 58px; height: 58px; background: var(--lq-olive); border-color: rgba(255, 255, 255, .4); }
+  .ctrl .play .ic svg { width: 24px; height: 24px; }
+  .ctrl button[aria-pressed="true"]:not(.play) .ic { background: #fff; color: var(--lq-ink); }
+  .ctrl button:disabled { opacity: .35; cursor: default; }
+  .caption { position: fixed; z-index: 11; bottom: calc(160px + var(--safe-b)); left: 50%; transform: translateX(-50%);
+    width: min(560px, calc(100vw - 24px)); margin: 0; padding: .8rem 1rem; border-radius: 18px; font-size: .95rem; line-height: 1.85; }
+
+  /* Saad stands at the side, his greeting as a dark glass card */
+  .guide, .guide.has-photo { top: auto; bottom: calc(150px + var(--safe-b)); inset-inline-start: 10px; inset-inline-end: auto; width: 104px; }
+  .guide-bubble { background: var(--lq-glass); color: #fff; border: 1px solid var(--lq-glass-line);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); font: 400 .88rem/1.65 var(--lq-font);
+    inset-inline-start: 100%; inset-inline-end: auto; bottom: 34%; top: auto; max-width: 230px; border-radius: 18px; padding: .75rem .9rem; }
+  .guide-bubble::after { content: attr(data-cta); display: block; width: max-content; margin-top: .55rem;
+    background: #fff; color: var(--lq-ink); border-radius: 999px; padding: .25rem .75rem; font-size: .78rem; font-weight: 600; }
+  .guide-bubble:not([data-cta])::after { display: none; }
+  @media (max-width: 599px) {
+    .guide, .guide.has-photo { width: 76px; bottom: calc(150px + var(--safe-b)); }
+    .guide-bubble { max-width: 180px; font-size: .8rem; }
+    .ctrl button { min-width: 50px; }
+  }
+  body.asking .stepper, body.asking .ctrl, body.asking .guide, body.asking .caption, body.asking .culture { display: none !important; }
+
+  /* Look-alikes: a light card under the top bar */
+  .culture { top: calc(66px + var(--safe-t)); bottom: auto; inset-inline-end: 12px; inset-inline-start: auto; left: auto; right: auto;
+    transform: none; width: 290px; max-width: calc(100vw - 24px); border-radius: 20px; background: rgba(247, 247, 245, .95);
+    font-family: var(--lq-font); }
+  [dir="rtl"] .culture { left: 12px; }
+  .culture, [dir] .culture { transform: translateY(-6px); }
+  .culture.on, [dir] .culture.on { transform: none; }   /* the old bottom-sheet rules slid it sideways */
+  .culture h2 { color: var(--lq-olive); }
+  @media (max-width: 599px) {
+    .culture, [dir="ltr"] .culture { top: calc(66px + var(--safe-t)); bottom: auto; left: 12px; right: 12px; width: auto;
+      transform: none; max-height: 30vh; overflow-y: auto; }
+  }
+
+  /* Ask Saad: a dark glass sheet over the scene, the microphone first */
+  .panel.guide-mode { left: 0; right: 0; margin-inline: auto; top: auto; bottom: calc(14px + var(--safe-b));
+    transform: none !important; width: min(520px, calc(100vw - 24px)); max-height: 72vh; border-radius: 26px;
+    background: rgba(30, 28, 22, .72); color: #fff; border: 1px solid var(--lq-glass-line); box-shadow: 0 20px 50px rgba(0, 0, 0, .35);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); font-family: var(--lq-font); }
+  .panel.guide-mode .handle { display: none; }
+  .panel.guide-mode .panel-close { background: rgba(255, 255, 255, .14); color: #fff; }
+  .panel.guide-mode .guide-head h2 { color: #fff; }
+  .panel.guide-mode .guide-avatar { background: rgba(255, 255, 255, .2); }
+  .panel.guide-mode .reply-mode { color: #fff; border-color: rgba(255, 255, 255, .4); background: transparent; }
+  .panel.guide-mode .msg.user { background: rgba(255, 255, 255, .16); color: #fff; border: 1px solid rgba(255, 255, 255, .2); }
+  .panel.guide-mode .msg.assistant { background: transparent; color: #fff; border: 0; padding-inline: 0; }
+  .panel.guide-mode .msg.pending { color: rgba(255, 255, 255, .7); }
+  .panel.guide-mode .msg.error { color: #F3B9A6; }
+  .panel.guide-mode .chip { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .45); }
+  .panel.guide-mode .chip:hover { background: rgba(255, 255, 255, .12); }
+  .panel.guide-mode .ask-form input { background: rgba(255, 255, 255, .12); color: #fff; border-color: rgba(255, 255, 255, .25); }
+  .panel.guide-mode .ask-form input::placeholder { color: rgba(255, 255, 255, .6); }
+  .panel.guide-mode .ask-form .primary { background: var(--lq-olive); border-color: var(--lq-olive); color: #fff; }
+  .panel.guide-mode .listen-btn { color: #fff; border-color: rgba(255, 255, 255, .5); }
+  .panel.guide-mode .demo-note { background: rgba(217, 162, 58, .2); color: #F4DDAE; }
+  .mic-row { display: grid; justify-items: center; gap: .4rem; margin-top: .9rem; }
+  .big-mic { width: 68px; height: 68px; border-radius: 50%; border: 6px solid rgba(255, 255, 255, .18);
+    background: var(--lq-olive); color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; background-clip: padding-box; }
+  .big-mic[hidden] { display: none; }
+  .big-mic svg { width: 26px; height: 26px; }
+  .big-mic.on { background: #A1442F; animation: mic-pulse 1.2s ease-in-out infinite; }
+  @keyframes mic-pulse { 50% { box-shadow: 0 0 0 10px rgba(161, 68, 47, .25); } }
+  .mic-hint { margin: 0; font-size: .8rem; color: rgba(255, 255, 255, .75); min-height: 1.2em; }
+  @media (prefers-reduced-motion: reduce) { .big-mic.on { animation: none; } }
+  /* The end of the tour: the pavilion's stamp drops onto a light card (tour.js finished()) */
+  .stamp-done { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px;
+    background: rgba(20, 18, 14, .62); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: stamp-fade .3s ease both; }
+  .stamp-card { width: min(340px, 100%); background: #F7F7F5; color: #1F1F1A; border-radius: 28px; padding: 1.4rem 1.2rem 1rem;
+    display: grid; justify-items: center; gap: .55rem; text-align: center; font-family: var(--lq-font); box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
+  .stamp-kicker { margin: 0; font-size: .9rem; color: #6E6E66; font-weight: 500; }
+  .stamp-img { width: 150px; height: auto; transform: rotate(-4deg); filter: drop-shadow(0 8px 14px rgba(31, 31, 26, .22));
+    animation: stamp-in .7s cubic-bezier(.2, .9, .3, 1.3) .15s both; }
+  .stamp-card h2 { margin: .3rem 0 0; font-size: 1.2rem; font-weight: 700; line-height: 1.5; color: #1F1F1A; }
+  .stamp-sub { margin: 0 0 .4rem; font-size: .84rem; color: #6E6E66; }
+  .stamp-btn { display: block; width: 100%; padding: .75rem; border-radius: 999px; text-decoration: none; font-weight: 600;
+    font-size: .95rem; border: 1.5px solid var(--lq-olive); color: var(--lq-olive); }
+  .stamp-btn.primary { background: var(--lq-olive); color: #fff; }
+  .stamp-close { background: none; border: 0; color: #6E6E66; font: 500 .88rem var(--lq-font); padding: .4rem; cursor: pointer; }
+  .stamp-btn:focus-visible, .stamp-close:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+  @keyframes stamp-fade { from { opacity: 0; } }
+  @keyframes stamp-in { from { opacity: 0; transform: scale(1.8) rotate(-18deg); } 70% { opacity: 1; transform: scale(.94) rotate(-3deg); } }
+  @media (prefers-reduced-motion: reduce) { .stamp-done, .stamp-img { animation: none; } }
+
+  /* phones: Saad smaller at the side above the stops, the top bar shares its width */
+  @media (max-width: 599px) {
+    .guide, .guide.has-photo { top: auto !important; bottom: calc(150px + var(--safe-b)); width: 58px; }
+    .guide-bubble { top: auto; bottom: 40%; inset-inline-start: 100%; inset-inline-end: auto; max-width: 190px; }
+    .topbar .pill { flex: 1; }
+    .lang-pick select { max-width: 4.6rem; }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="stage" aria-label="مشهد ثلاثي الأبعاد للجناح"></div>
+
+  <div class="empty" id="empty">
+    <p>ما فيه مشهد محمّل. اختر ملف <bdi>.ply</bdi> من جهازك، أو ضعه في مجلد <bdi>web</bdi> باسم <bdi>scene.ply</bdi>.</p>
+  </div>
+
+  <!-- Walk the corridor: stops along the filmed path (tour.js, web/tour.json) -->
+  <!-- The tour, as the Lqya design draws it (Figma: tour screen): tour.js fills it -->
+  <div class="tour-ui" id="tourBar" hidden>
+    <header class="topbar">
+      <a class="glass round" id="tourClose" href="home.html" aria-label="رجوع للرئيسية"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></a>
+      <div class="glass pill"><b id="tourTitle"></b><span id="tourCount" aria-live="polite"></span></div>
+      <div class="top-actions">
+        <label class="glass lang-pick"><span aria-hidden="true">🌐</span>
+          <select id="langSelect" aria-label="اللغة / Language"></select></label>
+        <button type="button" class="glass round" id="soundBtn" aria-pressed="true" aria-label="الصوت"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path class="wave" d="M16 8.5a5 5 0 010 7M18.5 6a8.5 8.5 0 010 12" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></button>
+      </div>
+    </header>
+    <p class="glass caption" id="captionCard" aria-live="polite" hidden></p>
+    <nav class="glass stepper" id="stepper" aria-label="المحطات"></nav>
+    <nav class="glass ctrl" id="ctrlBar" aria-label="التحكم بالجولة">
+      <button type="button" id="tourPrev"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="lb">السابقة</span></button>
+      <button type="button" id="textBtn" aria-pressed="false"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M7 10h4M13 10h4M7 14h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="lb">النص</span></button>
+      <button type="button" class="play" id="tourAuto" aria-pressed="false"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></span><span class="lb">شغّل</span></button>
+      <button type="button" id="askBtn" hidden><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M6 11a6 6 0 0012 0M12 17v4" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></span><span class="lb">اسأل سعد</span></button>
+      <button type="button" id="tourNext"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="lb">التالية</span></button>
+    </nav>
+  </div>
+
+  <!-- The tour guide (guide.js): white ghutra and black agal, white thobe, holding a museum folder bag -->
+  <button type="button" class="guide" id="guideBtn" aria-label="اسأل المرشد" hidden>
+    <span class="guide-bubble" id="guideBubble" aria-hidden="true"></span>
+    <!-- A realistic picture of him when web/guide.png exists (scripts/cutout.py); the drawing below otherwise -->
+    <img class="guide-photo" id="guidePhoto" alt="" hidden>
+    <span class="guide-waves" aria-hidden="true"><i></i><i></i><i></i></span>
+    <svg viewBox="0 0 120 220" aria-hidden="true">
+      <defs>
+        <linearGradient id="gWhite" x1="0" x2="1">
+          <stop offset="0" stop-color="#DCD8D0"/><stop offset=".32" stop-color="#FFFFFF"/>
+          <stop offset=".7" stop-color="#F5F3EE"/><stop offset="1" stop-color="#D3CEC4"/>
+        </linearGradient>
+        <linearGradient id="gCloth" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E6E2DA"/>
+        </linearGradient>
+        <radialGradient id="gSkin" cx=".42" cy=".36" r=".7">
+          <stop offset="0" stop-color="#EDBB98"/><stop offset=".7" stop-color="#D69C75"/><stop offset="1" stop-color="#BF8460"/>
+        </radialGradient>
+        <radialGradient id="gHand" cx=".4" cy=".35" r=".8">
+          <stop offset="0" stop-color="#E8B492"/><stop offset="1" stop-color="#C08561"/>
+        </radialGradient>
+      </defs>
+      <!-- ground shadow and shoes -->
+      <ellipse cx="60" cy="214" rx="34" ry="4.5" fill="rgba(0,0,0,.2)"/>
+      <ellipse cx="49" cy="208" rx="10" ry="5" fill="url(#gCloth)" stroke="#D5D0C6" stroke-width=".8"/>
+      <ellipse cx="71" cy="208" rx="10" ry="5" fill="url(#gCloth)" stroke="#D5D0C6" stroke-width=".8"/>
+      <!-- ghutra falling behind the shoulders -->
+      <path d="M38 40 Q33 66 31 94 L89 94 Q87 66 82 40 Z" fill="url(#gWhite)"/>
+      <!-- thobe -->
+      <path d="M38 86 Q60 80 82 86 Q91 90 91 102 L95 205 Q60 211 25 205 L29 102 Q29 90 38 86 Z" fill="url(#gWhite)" stroke="#D8D3C9" stroke-width=".9"/>
+      <path d="M60 90 V142" stroke="#E0DCD3" stroke-width="1.2"/>
+      <circle cx="60" cy="99" r="1" fill="#CBC5BA"/><circle cx="60" cy="109" r="1" fill="#CBC5BA"/>
+      <circle cx="60" cy="119" r="1" fill="#CBC5BA"/><circle cx="60" cy="129" r="1" fill="#CBC5BA"/>
+      <rect x="65" y="98" width="14" height="9" rx="1.5" fill="none" stroke="#E1DDD4" stroke-width="1"/>
+      <!-- the arm with the bag -->
+      <path d="M34 90 Q24 112 25 150 L34 151 Q35 120 41 100 Z" fill="url(#gWhite)" stroke="#D8D3C9" stroke-width=".9"/>
+      <ellipse cx="29.5" cy="155" rx="4.6" ry="6.2" fill="url(#gHand)"/>
+      <path d="M21 162 Q21 152 29 152 Q37 152 37 162" stroke="#ECE9E3" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+      <rect x="14" y="161" width="30" height="25" rx="3.5" fill="url(#gCloth)" stroke="#D3CEC4" stroke-width=".9"/>
+      <path d="M14 164.5 H44 V173 Q29 176 14 173 Z" fill="#F8F7F3" stroke="#DAD6CD" stroke-width=".8"/>
+      <rect x="21" y="171" width="2.4" height="5" rx="1" fill="#E3DFD7" stroke="#CFCABF" stroke-width=".5"/>
+      <rect x="34.6" y="171" width="2.4" height="5" rx="1" fill="#E3DFD7" stroke="#CFCABF" stroke-width=".5"/>
+      <!-- the other arm (waves hello) -->
+      <g class="hand">
+        <path d="M86 90 Q96 112 95 150 L86 151 Q85 120 79 100 Z" fill="url(#gWhite)" stroke="#D8D3C9" stroke-width=".9"/>
+        <ellipse cx="90.5" cy="155" rx="4.6" ry="6.2" fill="url(#gHand)"/>
+      </g>
+      <!-- collar and neck -->
+      <rect x="55" y="70" width="10" height="15" rx="3" fill="#C38962"/>
+      <path d="M51 83 Q60 88 69 83 L69 88 Q60 93 51 88 Z" fill="#F4F2ED" stroke="#D8D3C9" stroke-width=".8"/>
+      <!-- ghutra sides framing the face -->
+      <path d="M43 33 Q34 52 35 76 L46 72 Q44 54 47 40 Z" fill="url(#gWhite)"/>
+      <path d="M77 33 Q86 52 85 76 L74 72 Q76 54 73 40 Z" fill="url(#gWhite)"/>
+      <!-- ears and face -->
+      <ellipse cx="43.5" cy="50" rx="3" ry="4.6" fill="#CF9670"/>
+      <ellipse cx="76.5" cy="50" rx="3" ry="4.6" fill="#CF9670"/>
+      <ellipse cx="60" cy="50" rx="16.5" ry="20.5" fill="url(#gSkin)"/>
+      <!-- beard and moustache -->
+      <path d="M44 52 Q45 72 60 74.5 Q75 72 76 52 Q74 62 68.5 64 Q60 60.5 51.5 64 Q46 62 44 52 Z" fill="#2E2622"/>
+      <path d="M53 61 Q60 57.6 67 61 Q60 63.2 53 61 Z" fill="#2E2622"/>
+      <path class="mouth-closed" d="M56.5 65.6 Q60 67.4 63.5 65.6" stroke="#C07B66" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <ellipse class="mouth-open" cx="60" cy="66.2" rx="3" ry="2.1" fill="#5A221A"/>
+      <!-- nose -->
+      <path d="M60.5 49 Q57.6 55.5 59 57.2 Q61 58 62.6 56.8" stroke="#A86D4D" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+      <!-- eyes and brows -->
+      <ellipse cx="53" cy="46.5" rx="4" ry="4.7" fill="#FFFFFF"/><ellipse cx="67" cy="46.5" rx="4" ry="4.7" fill="#FFFFFF"/>
+      <circle cx="53.5" cy="47.3" r="2.7" fill="#5B3A24"/><circle cx="66.5" cy="47.3" r="2.7" fill="#5B3A24"/>
+      <circle cx="53.5" cy="47.3" r="1.3" fill="#151515"/><circle cx="66.5" cy="47.3" r="1.3" fill="#151515"/>
+      <circle cx="54.4" cy="46.2" r=".8" fill="#FFFFFF"/><circle cx="67.4" cy="46.2" r=".8" fill="#FFFFFF"/>
+      <path d="M48.3 40.6 Q53 37.8 57.2 40" stroke="#2E2622" stroke-width="2.3" fill="none" stroke-linecap="round"/>
+      <path d="M62.8 40 Q67 37.8 71.7 40.6" stroke="#2E2622" stroke-width="2.3" fill="none" stroke-linecap="round"/>
+      <!-- ghutra over the forehead -->
+      <path d="M41 37 Q42 15 60 14 Q78 15 79 37 Q70 29.5 60 29.5 Q50 29.5 41 37 Z" fill="url(#gWhite)" stroke="#E2DED5" stroke-width=".6"/>
+      <!-- agal -->
+      <ellipse cx="60" cy="22.5" rx="19.5" ry="4.2" fill="none" stroke="#1C1C1C" stroke-width="3"/>
+      <ellipse cx="60" cy="26.5" rx="20.5" ry="4.4" fill="none" stroke="#2A2A2A" stroke-width="3"/>
+    </svg>
+  </button>
+
+  <!-- Walking: a hint for the keys, and a pad on touch screens (walk.js) -->
+  <p class="walk-hint" id="walkHint" hidden>امشِ بالأسهم ↑ ↓ والتفت ← → ، واسحب بالماوس عشان تتلفت</p>
+  <div class="walk-pad" id="walkPad" hidden aria-label="أزرار المشي">
+    <button type="button" data-move="fwd" aria-label="قدام">▲</button>
+    <button type="button" data-move="right" aria-label="التفت يمين">▶</button>
+    <button type="button" data-move="back" aria-label="ورا">▼</button>
+    <button type="button" data-move="left" aria-label="التفت يسار">◀</button>
+  </div>
+
+  <!-- Dims the scene while the tour jumps between stops -->
+  <div class="tour-fade" id="tourFade" aria-hidden="true"></div>
+  <p class="scene-toast" id="sceneToast" aria-live="polite"></p>
+
+  <!-- Look-alikes from other cultures for the current stop (culture.js) -->
+  <aside class="culture" id="cultureCard" aria-live="polite">
+    <button type="button" class="culture-close" id="cultureClose" aria-label="سكّر">×</button>
+    <h2 id="cultureTitle"></h2>
+    <div class="culture-list" id="cultureList"></div>
+    <p class="culture-credit" id="cultureCredit"></p>
+  </aside>
+
+  <!-- Hotspot markers, positioned over the 3D scene by hotspots.js -->
+  <div class="spots" id="spots"></div>
+
+  <!-- Pavilion switch: floats over the scene (the panel is closed at first) -->
+  <nav class="scenes scene-switch" id="scenePicker" aria-label="الأجنحة"></nav>
+
+  <section class="panel closed" id="panel">
+    <button class="handle" id="handle" aria-label="إظهار أو إخفاء التفاصيل"><span></span></button>
+    <button type="button" class="panel-close" id="panelClose" aria-label="سكّر">×</button>
+
+    <!-- The scene's story -->
+    <div id="storyView">
+      <p class="fresh"><i></i><span id="fresh">صوّره زائر في الموقع</span></p>
+      <h1 id="title">جناح تراثي</h1>
+      <p class="narration" id="narration"></p>
+      <ul class="highlights" id="highlights"></ul>
+      <div class="actions">
+        <button class="primary" id="tourBtn">ابدأ الجولة الصوتية</button>
+        <button class="ghost" id="langBtn">English</button>
+        <label class="ghost">افتح مشهد
+          <input type="file" id="fileInput" accept=".ply,.splat,.ksplat">
+        </label>
+      </div>
+      <!-- The tour guide: needs scripts/server.py with an API key (guide.js) -->
+      <div class="ask" id="guide" hidden>
+        <header class="guide-head">
+          <img src="guide.png" alt="" class="guide-avatar">
+          <div>
+            <h2 id="guideTitle">سعد</h2>
+            <p class="demo-note" id="guideDemo" hidden></p>
+          </div>
+          <button type="button" class="ghost reply-mode" id="replyMode" aria-pressed="true"></button>
+        </header>
+        <div class="chat" id="guideChat" aria-live="polite"></div>
+        <div class="chips" id="guideChips"></div>
+        <form class="ask-form" id="guideForm">
+          <input id="guideInput" type="text" maxlength="300" autocomplete="off" aria-labelledby="guideTitle">
+          <button type="submit" class="primary" id="guideSend">اسأل</button>
+        </form>
+        <div class="mic-row">
+          <button type="button" class="big-mic" id="guideMic" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M6 11a6 6 0 0012 0M12 17v4" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></button>
+          <p class="mic-hint" id="micHint"></p>
+        </div>
+      </div>
+      <a class="film-link" id="filmLink" href="film.html">زرت المكان؟ سوّ فيلم رحلتك بصوتك ←</a>
+      <p class="hint" id="hint">اسحب للدوران، وكبّر بإصبعين أو بعجلة الفأرة.</p>
+    </div>
+
+    <!-- One hotspot's explanation -->
+    <div id="spotView" hidden>
+      <button class="link" id="spotBack">→ المشهد كامل</button>
+      <h1 class="spot-title"><span class="num" id="spotNum">1</span><span id="spotTitle"></span></h1>
+      <p class="narration" id="spotText"></p>
+      <div class="actions">
+        <button class="primary" id="spotListen">▶ استمع للشرح</button>
+        <button class="ghost" id="spotNext">التالي ←</button>
+        <button class="ghost" id="spotLang">English</button>
+      </div>
+
+      <!-- Questions: needs scripts/server.py with an API key -->
+      <div class="ask" id="ask" hidden>
+        <h2 id="askTitle">اسأل عن هذي القطعة</h2>
+        <div class="chat" id="chat" aria-live="polite" hidden></div>
+        <form class="ask-form" id="askForm">
+          <input id="askInput" type="text" maxlength="300" autocomplete="off" aria-labelledby="askTitle">
+          <button type="button" class="ghost mic" id="askMic" hidden>🎙</button>
+          <button type="submit" class="primary" id="askSend">اسأل</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Editor: tour.html?edit -->
+    <div id="editor" hidden>
+      <h1>تحرير النقاط</h1>
+      <p class="hint ed-help">اضغط على أي مكان في المشهد عشان تضيف نقطة. اضغط على نقطة موجودة عشان تعدلها.</p>
+      <p class="ed-note" id="draftNote" hidden>تشتغل على مسودة محفوظة بهذا المتصفح. <button class="link" id="edDiscard">ارجع لملف hotspots.json</button></p>
+      <ol class="ed-list" id="edList"></ol>
+      <p class="hint" id="edEmpty">ما فيه نقاط للحين.</p>
+
+      <form class="ed-form" id="edForm" hidden onsubmit="return false">
+        <h2 id="edFormTitle">النقطة</h2>
+
+        <!-- Automatic description: the model looks at the current view (and the museum's text, if any) -->
+        <div class="ed-auto" id="edAuto" hidden>
+          <p class="hint">قرّب الكاميرا على القطعة لين تبان واضحة، وبعدين اضغط الزر. الموديل يشوف القطعة ويكتب شرح سردي.</p>
+          <label for="edFacts">شرح من المتحف (اختياري): الصق أي معلومة لقيتها</label>
+          <textarea id="edFacts" rows="3" placeholder="مثلاً: نقوش صخرية من منطقة حائل، الألف الأول قبل الميلاد"></textarea>
+          <label class="ghost ed-file">📷 صورة لوحة المتحف (اختياري)
+            <input type="file" id="edLabel" accept="image/*">
+          </label>
+          <span class="ed-file-name" id="edLabelName"></span>
+          <button type="button" class="primary ed-write" id="edWrite">✨ اكتب الشرح من المشهد</button>
+        </div>
+
+        <label for="edTitle">العنوان</label>
+        <input id="edTitle" type="text" maxlength="60" placeholder="مثلاً: نقش الجمل">
+        <label for="edText">الشرح (يتحول لصوت)</label>
+        <textarea id="edText" rows="4" placeholder="جملتين أو ثلاث عن هذا الجزء"></textarea>
+        <label for="edTitleEn">Title (English)</label>
+        <input id="edTitleEn" type="text" maxlength="60" dir="ltr">
+        <label for="edTextEn">Explanation (English)</label>
+        <textarea id="edTextEn" rows="3" dir="ltr"></textarea>
+        <div class="actions">
+          <button type="button" class="ghost" id="edView">خذ زاوية الكاميرا الحالية</button>
+          <button type="button" class="ghost" id="edMove">انقل النقطة</button>
+          <button type="button" class="ghost danger" id="edDelete">احذف</button>
+          <button type="button" class="primary" id="edDone">تم</button>
+        </div>
+      </form>
+
+      <p class="ed-status" id="edStatus" role="status"></p>
+      <div class="actions">
+        <button class="ghost" id="edStart">خذ الزاوية الحالية كبداية للمشهد</button>
+      </div>
+      <div class="actions">
+        <button class="primary" id="edDownload">نزّل hotspots.json</button>
+        <button class="ghost" id="edCopy">انسخ</button>
+      </div>
+    </div>
+  </section>
+
+  <audio id="narrationAudio" src="audio/narration.mp3" preload="auto"></audio>
+  <audio id="ambientAudio" src="audio/ambient.wav" preload="auto" loop></audio>
+
+<script type="module">
+import * as GS from '@mkkellogg/gaussian-splats-3d';
+// Scene settings (camera angle, file name) live in scene-config.js
+import { findScene, CAMERA, SCENES, SCENE, sceneUrl, withScene } from './scene-config.js';
+import { initHotspots, clearHotspots } from './hotspots.js';
+import { initAsk } from './ask.js';
+import { initGuide } from './guide.js';
+import { initCulture } from './culture.js';
+import { initVoice } from './voice.js';
+import { makeFloorScene, enableLimits, trackSorting } from './stage.js';
+import { initTour } from './tour.js';
+import { LANGUAGES, byCode, uiLang, savedLang, rememberLang } from './languages.js';
+
+const $ = (id) => document.getElementById(id);
+let viewer = null;
+let lang = 'ar';
+let story = null;
+let URL_DEFAULT = null;
+const editMode = new URLSearchParams(location.search).has('edit');
+
+// ---------- 3D viewer ----------
+async function loadScene(url, format) {
+  if (viewer) {
+    clearHotspots(); $('tourBar').hidden = true;
+    await viewer.dispose(); viewer = null;
+    if (!$('stage')) {   // disposing the viewer removes its root element: put a fresh one back
+      const stage = Object.assign(document.createElement('div'), { id: 'stage' });
+      stage.setAttribute('aria-label', 'مشهد ثلاثي الأبعاد للجناح');
+      document.body.prepend(stage);
+    }
+    $('stage').innerHTML = '';
+  }
+  viewer = new GS.Viewer({
+    ...CAMERA,
+    rootElement: $('stage'),
+    threeScene: url === URL_DEFAULT ? makeFloorScene() : undefined,   // the floor fits this scene only
+    sharedMemoryForWorkers: false,   // works on plain static hosting (GitHub Pages)
+  });
+  const opts = { showLoadingUI: true, splatAlphaRemovalThreshold: 5 };
+  if (format !== undefined) opts.format = format;
+  const extras = url === URL_DEFAULT ? SCENE.extras || [] : [];
+  if (extras.length) {
+    // The scan and the pieces that belong to its tour, in one space
+    await viewer.addSplatScenes([{ path: url, ...opts }, ...extras.map((x) => ({
+      path: sceneUrl(x.file), position: x.position || [0, 0, 0], splatAlphaRemovalThreshold: opts.splatAlphaRemovalThreshold,
+    }))], true);
+  } else {
+    await viewer.addSplatScene(url, opts);
+  }
+  viewer.start();
+  trackSorting(viewer);
+  $('empty').hidden = true;
+}
+
+async function tryDefaultScene() {
+  try {
+    const url = await findScene();
+    if (!url) return;
+    URL_DEFAULT = url;
+    await loadScene(url);
+    // The tour, hotspots and limits belong to this scene, so they only load with it (not with a file opened by hand)
+    const tour = await initTour(viewer);     // starts at the first stop of the filmed path, if there is one
+    await initHotspots(viewer, { editMode }); // a starting angle saved in the editor wins
+    // Orbit limits only when not walking (walking keeps visitors on the filmed path); the editor goes anywhere
+    if (!editMode && !tour?.walk) enableLimits(viewer);
+  } catch (e) {
+    console.error(e);
+    // The browser refused 3D graphics (WebGL), usually after the page crashed a few times: say so, not "no scene"
+    if (/WebGL/i.test(String(e?.message || e))) {
+      $('empty').hidden = false;
+      $('empty').querySelector('p').textContent = 'المتصفح وقّف الرسوم ثلاثية الأبعاد لهالصفحة. سكّر المتصفح كله وافتحه من جديد، وتأكد إن «تسريع الرسوم» (Hardware acceleration) شغال في الإعدادات.';
+    }
+  }
+}
+
+$('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const name = file.name.toLowerCase();
+  const format = name.endsWith('.ksplat') ? GS.SceneFormat.KSplat
+               : name.endsWith('.splat') ? GS.SceneFormat.Splat
+               : GS.SceneFormat.Ply;
+  try {
+    await loadScene(URL.createObjectURL(file), format);
+  } catch (err) {
+    console.error(err);
+    alert('تعذّر فتح الملف. تأكد أنه ملف Gaussian Splatting بصيغة .ply أو .splat أو .ksplat');
+  }
+});
+
+// ---------- Narration ----------
+function timeAgo(iso) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (isNaN(mins)) return null;
+  if (lang === 'en') {
+    if (mins < 60) return `Captured by a visitor ${mins} min ago`;
+    if (mins < 1440) return `Captured by a visitor ${Math.round(mins / 60)} h ago`;
+    return `Captured by a visitor on ${new Date(iso).toLocaleDateString('en-GB')}`;
+  }
+  if (mins < 60) return `صوّره زائر قبل ${mins} دقيقة`;
+  if (mins < 1440) return `صوّره زائر قبل ${Math.round(mins / 60)} ساعة`;
+  return `صوّره زائر بتاريخ ${new Date(iso).toLocaleDateString('ar-SA')}`;
+}
+
+function render() {
+  if (!story) return;
+  const en = lang === 'en';
+  $('title').textContent = en ? (story.title_en || story.title) : story.title;
+  $('narration').textContent = en ? story.narration_en : story.narration_ar;
+  $('narration').dir = en ? 'ltr' : 'rtl';
+  $('highlights').innerHTML = '';
+  (story.highlights || []).forEach((h) => {
+    const li = document.createElement('li'); li.textContent = h; $('highlights').appendChild(li);
+  });
+  const ago = story.captured_at ? timeAgo(story.captured_at) : null;
+  const place = story.place ? `، ${story.place}` : '';
+  $('fresh').textContent = (ago || (en ? 'Captured by an on-site visitor' : 'صوّره زائر في الموقع')) + place;
+  $('langBtn').textContent = en ? 'العربية' : 'English';
+  renderScenes();
+}
+
+// One button per pavilion; picking one reloads the page on it (keeps ?edit)
+function renderScenes() {
+  const nav = $('scenePicker');
+  nav.hidden = true;   // the pavilions play as one connected tour (tour.js), so there is nothing to pick; set SCENES.length < 2 to show it again
+  nav.setAttribute('aria-label', lang === 'en' ? 'Pavilions' : 'الأجنحة');
+  nav.replaceChildren(...SCENES.map((s) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = lang === 'en' ? s.title_en : s.title;
+    b.setAttribute('aria-current', String(s.id === SCENE.id));
+    b.addEventListener('click', () => {
+      if (s.id === SCENE.id) return;
+      const url = new URL(location.href);
+      url.searchParams.set('scene', s.id);
+      url.searchParams.delete('stop'); url.searchParams.delete('auto');
+      location.href = url;
+    });
+    return b;
+  }));
+}
+$('filmLink').href = withScene('memory.html');
+
+async function loadStory() {
+  try {
+    // The pavilion's own story if it has one (web/scenes/<id>/narration.json), else the sample with its name
+    const own = await fetch(sceneUrl('narration.json'));
+    story = await (own.ok ? own : await fetch('narration.json')).json();
+    if (!own.ok) Object.assign(story, { title: SCENE.title, title_en: SCENE.title_en });
+  } catch (e) {
+    story = {
+      title: SCENE.title, title_en: SCENE.title_en,
+      narration_ar: 'شغّل سكربت narrate.py لتوليد السرد الثقافي لهذا المشهد.',
+      narration_en: 'Run narrate.py to generate the cultural narration for this scene.',
+      highlights: [],
+    };
+  }
+  render();
+}
+
+// The visitor's language: Saad answers and talks in it; the page's text follows in Arabic or English
+function setLang(code, { quiet = false } = {}) {
+  const l = byCode(code) || LANGUAGES[0];
+  lang = uiLang(l.code);
+  const root = document.documentElement;
+  root.dataset.lang = lang;
+  root.dataset.speak = l.code;
+  root.lang = l.code;
+  $('langSelect').value = l.code;
+  rememberLang(l.code);
+  render();
+  if (!quiet) document.dispatchEvent(new Event('langchange'));
+}
+$('langSelect').replaceChildren(...LANGUAGES.map((l) => new Option(l.name, l.code)));
+$('langSelect').addEventListener('change', (e) => setLang(e.target.value));
+$('langBtn').addEventListener('click', () => setLang(lang === 'ar' ? 'en' : 'ar'));
+setLang(savedLang() || 'ar', { quiet: true });
+
+// ---------- Audio tour ----------
+const narr = $('narrationAudio');
+const amb = $('ambientAudio');
+amb.volume = 0.35;
+let playing = false;
+
+$('tourBtn').addEventListener('click', async () => {
+  if (playing) {
+    narr.pause(); amb.pause(); playing = false;
+    $('tourBtn').textContent = 'كمّل الجولة الصوتية';
+    return;
+  }
+  playing = true;
+  document.dispatchEvent(new Event('tour:play'));   // stops a hotspot explanation
+  $('tourBtn').textContent = 'إيقاف مؤقت';
+  amb.play().catch(() => {});
+  narr.play().catch(() => {
+    $('tourBtn').textContent = 'ما فيه ملف سرد صوتي بعد';
+    playing = false;
+  });
+});
+document.addEventListener('hotspot:play', () => {
+  if (!playing) return;
+  narr.pause(); amb.pause(); playing = false;
+  $('tourBtn').textContent = 'كمّل الجولة الصوتية';
+});
+narr.addEventListener('ended', () => { $('tourBtn').textContent = 'أعد الجولة الصوتية'; playing = false; amb.pause(); });
+
+// ---------- Mobile bottom sheet ----------
+$('handle').addEventListener('click', () => $('panel').classList.toggle('collapsed'));
+// The panel opens from the guide or a point on a piece, and closes back to the bare scene
+$('panelClose').addEventListener('click', () => {
+  $('panel').classList.add('closed');
+  document.dispatchEvent(new Event('panel:close'));
+});
+if (editMode) $('panel').classList.remove('closed');
+
+if (editMode) {
+  $('storyView').hidden = true;
+  $('editor').hidden = false;
+  $('edStatus').textContent = 'جاري تحميل المشهد…';
+}
+// The 3D viewer moves the camera with W A S D (and reacts to a few other letters) anywhere on the page.
+// Keep typed keys inside the text boxes so every letter gets typed.
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest?.('input, textarea')) e.stopPropagation();
+});
+
+loadStory();
+initAsk();
+if (!editMode) { initGuide(); initCulture(); }
+initVoice();
+tryDefaultScene().then(() => {
+  if (editMode && !viewer) $('edStatus').textContent = 'التحرير يحتاج web/scene.ply.';
+  else if (editMode) $('edStatus').textContent = '';
+});
+</script>
+</body>
+</html>

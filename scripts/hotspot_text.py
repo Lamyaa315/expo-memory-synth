@@ -2,7 +2,7 @@
 Write a hotspot's explanation from a photo of the museum's label (the plaque next to the piece).
 The text sticks to what the label says, so the content stays accurate.
 
-Updates the hotspot with that id in web/hotspots.json (place hotspots first with index.html?edit).
+Updates the hotspot with that id in web/hotspots.json (place hotspots first with tour.html?edit).
 
 Example:
     export ANTHROPIC_API_KEY=sk-...
