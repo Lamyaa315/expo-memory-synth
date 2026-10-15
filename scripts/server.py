@@ -610,7 +610,9 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--port", type=int, default=int(os.getenv("PORT", "8000")))
+    p.add_argument("--host", default=os.getenv("HOST", "127.0.0.1"),
+                   help="0.0.0.0 on a host (Hugging Face Spaces, Docker); 127.0.0.1 keeps it on this computer")
     args = p.parse_args()
 
     load_env()
@@ -624,7 +626,7 @@ def main():
     print("Voice: " + " -> ".join(voices[e] for e in tts.engines()) if Handler.tts
           else "Voice: browser only (set GEMINI_API_KEY or pip install edge-tts)")
 
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), partial(Handler, directory=str(WEB)))
+    server = ThreadingHTTPServer((args.host, args.port), partial(Handler, directory=str(WEB)))
     print(f"Serving web/ at http://localhost:{args.port}  (Ctrl+C to stop)")
     try:
         server.serve_forever()
