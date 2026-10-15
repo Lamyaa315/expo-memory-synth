@@ -244,12 +244,14 @@ function startAuto({ fromHere = false } = {}) {
 
 // ---------- the end of the tour: the pavilion's stamp (Figma: account → "طوابعي") ----------
 let stampShown = false;
-document.addEventListener('tour:arrive', (e) => {
-  // walking by hand to the very last stop; the automatic tour stamps after the guide's last words instead
-  if (auto || nextScene || e.detail.index !== tour.stops.length - 1) return;
-  const at = e.detail.index;
+// At the very last stop and not walking automatically: the stamp shows a moment later. Covers walking there by
+// hand, and the automatic tour ending there for any reason (paused, or the guide's voice blocked)
+function atLastStop() {
+  if (auto || nextScene || !tour || index !== tour.stops.length - 1) return;
+  const at = index;
   setTimeout(() => { if (!auto && index === at) finished(); }, STAMP_AFTER_MS);
-});
+}
+document.addEventListener('tour:arrive', atLastStop);
 
 function finished() {
   if (stampShown) return;   // once a visit
@@ -289,6 +291,7 @@ function stopAuto() {
   voice.stop();
   $('guideBtn')?.classList.remove('speaking');
   render();
+  atLastStop();
 }
 
 const PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>';

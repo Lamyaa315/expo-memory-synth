@@ -7,7 +7,8 @@ import sys
 import urllib.request
 from pathlib import Path
 
-FILES = ["web/scenes/corner/scene.splat", "web/scenes/corner/kingdoms.splat"]
+FILES = ["web/scenes/corner/scene.splat", "web/scenes/corner/kingdoms.splat",
+         "web/scenes/corner/scene-lite.splat", "web/scenes/corner/kingdoms-lite.splat"]   # -lite: for phones
 
 
 def main(repo, ref):

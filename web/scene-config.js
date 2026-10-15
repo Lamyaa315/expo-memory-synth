@@ -13,7 +13,7 @@ export const SCENES = [
     // The last stop of the kingdoms corridor (web/scenes/hall), cut out with scripts/clean_scene.py and placed far
     // above this scan so the tour goes on into it without loading another page. Its stop in tour.json is moved
     // by the same offset.
-    extras: [{ file: 'kingdoms.splat', position: [0, 0, 40] }],
+    extras: [{ file: 'kingdoms.splat', lite: 'kingdoms-lite.splat', position: [0, 0, 40] }],
     camera: {
       cameraUp: [0, 0, 1],                          // gsplat's trainer usually turns "up" into +z
       initialCameraPosition: [0.3673, -2.3803, 0.1931],
@@ -50,8 +50,12 @@ export function withScene(href, id = SCENE.id) {
   return url.pathname.split('/').pop() + url.search;
 }
 
+// Phones get a lighter copy of the scan (the first, biggest points of the .splat): the whole scan is more than a
+// phone browser lets a page hold, and iPhone Safari closes the page ("A problem repeatedly occurred")
+export const LITE = matchMedia('(pointer: coarse)').matches || /iPhone|iPad|Android/i.test(navigator.userAgent);
+
 // The light copy loads first when it exists
-export const SCENE_FILES = ['scene.splat', 'scene.ply'].map(sceneUrl);
+export const SCENE_FILES = [...(LITE ? ['scene-lite.splat'] : []), 'scene.splat', 'scene.ply'].map(sceneUrl);
 
 // First scene file that exists on the server, or null
 export async function findScene() {

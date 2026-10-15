@@ -788,7 +788,7 @@
 <script type="module">
 import * as GS from '@mkkellogg/gaussian-splats-3d';
 // Scene settings (camera angle, file name) live in scene-config.js
-import { findScene, CAMERA, SCENES, SCENE, sceneUrl, withScene } from './scene-config.js';
+import { findScene, CAMERA, SCENES, SCENE, sceneUrl, withScene, LITE } from './scene-config.js';
 import { initHotspots, clearHotspots } from './hotspots.js';
 import { initAsk } from './ask.js';
 import { initGuide } from './guide.js';
@@ -822,6 +822,7 @@ async function loadScene(url, format) {
     rootElement: $('stage'),
     threeScene: url === URL_DEFAULT ? makeFloorScene() : undefined,   // the floor fits this scene only
     sharedMemoryForWorkers: false,   // works on plain static hosting (GitHub Pages)
+    ...(LITE && { halfPrecisionCovariancesOnGPU: true, antialiased: false }),   // phones: less GPU memory
   });
   const opts = { showLoadingUI: true, splatAlphaRemovalThreshold: 5 };
   if (format !== undefined) opts.format = format;
@@ -829,7 +830,7 @@ async function loadScene(url, format) {
   if (extras.length) {
     // The scan and the pieces that belong to its tour, in one space
     await viewer.addSplatScenes([{ path: url, ...opts }, ...extras.map((x) => ({
-      path: sceneUrl(x.file), position: x.position || [0, 0, 0], splatAlphaRemovalThreshold: opts.splatAlphaRemovalThreshold,
+      path: sceneUrl(LITE && x.lite ? x.lite : x.file), position: x.position || [0, 0, 0], splatAlphaRemovalThreshold: opts.splatAlphaRemovalThreshold,
     }))], true);
   } else {
     await viewer.addSplatScene(url, opts);
