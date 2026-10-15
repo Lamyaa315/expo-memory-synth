@@ -50,7 +50,7 @@
   .stamp.got { color: var(--ink); }
 
   .trips { display: grid; gap: .5rem; margin-top: .6rem; }
-  .trip { display: flex; gap: .75rem; align-items: center; background: var(--bg); border-radius: 16px; padding: .6rem; }
+  .trip { text-decoration: none; color: inherit; display: flex; gap: .75rem; align-items: center; background: var(--bg); border-radius: 16px; padding: .6rem; }
   .trip img { width: 58px; height: 58px; border-radius: 12px; object-fit: cover; flex: none; }
   .trip p { margin: 0; font-size: .85rem; line-height: 1.6; }
   .trip small { color: var(--soft); font-size: .75rem; }
@@ -140,6 +140,7 @@
 <script type="module">
 import { LANGUAGES, savedLang, rememberLang } from './languages.js';
 import { STAMPS, earned, stampDate } from './stamps.js';
+import * as trips from './trips.js';
 
 const $ = (id) => document.getElementById(id);
 const ar = (n) => Number(n).toLocaleString('ar-SA');
@@ -175,7 +176,8 @@ $('guestBtn').addEventListener('click', () => { write('laqya-user', { name: 'ز�
 $('outBtn').addEventListener('click', () => { try { localStorage.removeItem('laqya-user'); } catch {} draw(); });
 $('wipeBtn').addEventListener('click', () => {
   if (!confirm('نمسح حسابك وطوابعك ورحلاتك المحفوظة من هذا المتصفح؟')) return;
-  try { ['laqya-user', 'laqya-stop', 'laqya-asked', 'laqya-memories', 'laqya-stamps'].forEach((k) => localStorage.removeItem(k)); } catch {}
+  try { ['laqya-user', 'laqya-stop', 'laqya-asked', 'laqya-stamps'].forEach((k) => localStorage.removeItem(k)); } catch {}
+  trips.clear();   // the saved trips and their films
   draw();
 });
 
@@ -190,7 +192,7 @@ $('replyVoice').addEventListener('change', () => { try { localStorage.setItem('e
 function draw() {
   const user = read('laqya-user', null);
   const stop = read('laqya-stop', null);
-  const trips = read('laqya-memories', []);
+  const saved = trips.list();
   const reached = stop ? Math.max(stop.max || 0, stop.n || 0) : 0;
 
   // the passport: a pavilion is stamped when its tour is finished (tour.js)
@@ -208,16 +210,18 @@ function draw() {
   $('stampCount').textContent = `${ar(got)} / ${ar(STAMPS.length)}`;
   $('stampMeter').style.width = `${(got / STAMPS.length) * 100}%`;
 
-  $('trips').replaceChildren(...(trips.length ? trips.map((t) => {
-    const d = document.createElement('div');
+  $('trips').replaceChildren(...(saved.length ? saved.slice(0, 3).map((t) => {
+    const d = document.createElement('a');
     d.className = 'trip';
+    d.href = 'memories.html';
     const when = new Date(t.at).toLocaleDateString('ar-SA', { day: 'numeric', month: 'long' });
     const voice = { mine: 'بصوتك', saad: 'بصوت سعد', none: 'بدون صوت' }[t.voice] || '';
-    d.innerHTML = '<img src="img/arches.jpg" alt=""><div><p></p><small></small></div>';
-    d.querySelector('p').textContent = t.story || 'رحلة بدون قصة';
+    d.innerHTML = '<img alt=""><div><p></p><small></small></div>';
+    d.querySelector('img').src = t.thumb || 'img/arches.jpg';
+    d.querySelector('p').textContent = t.title || t.story || 'رحلتي';
     d.querySelector('small').textContent = `${when} · ${voice} · ${ar(t.seconds || 0)} ثانية`;
     return d;
-  }) : [Object.assign(document.createElement('p'), { className: 'empty', innerHTML: 'ما حفظت رحلة للحين. <a href="memory.html">اصنع ذكرياتك</a>' })]));
+  }) : [Object.assign(document.createElement('p'), { className: 'empty', innerHTML: 'ما حفظت رحلة للحين. <a href="memory.html">رحلة جديدة</a>' })]));
 
   $('auth').hidden = !!user;
   $('me').hidden = !user;
@@ -228,7 +232,7 @@ function draw() {
     $('meEmail').textContent = user.guest ? 'زائر' : user.email;
     $('statStops').textContent = ar(reached);
     $('statStamps').textContent = ar(got);
-    $('statTrips').textContent = ar(trips.length);
+    $('statTrips').textContent = ar(saved.length);
   }
 }
 if (params.get('signup')) setTab(true);

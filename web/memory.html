@@ -134,7 +134,7 @@
 <body>
 <div class="page">
   <header class="top">
-    <a class="round" id="backBtn" href="home.html" aria-label="رجوع">
+    <a class="round" id="backBtn" href="memories.html" aria-label="رجوع">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
     <h1>اصنع ذكرياتك</h1>
   </header>
@@ -208,6 +208,7 @@
         <a class="btn primary" id="download" download="laqya.mp4">⬇ حمّل الرحلة</a>
         <button type="button" id="shareBtn">↗ شارك</button>
       </div>
+      <a class="btn" href="memories.html" style="justify-self:start">رحلاتك المحفوظة ←</a>
       <p class="status" id="shareStatus" aria-live="polite"></p>
     </div>
   </section>
@@ -219,6 +220,7 @@
 <script type="module">
 import * as story from './film-story.js';
 import { createFilm, loadPhoto, forgetPhoto, MAX_PHOTOS } from './trip-film.js';
+import * as trips from './trips.js';
 
 const $ = (id) => document.getElementById(id);
 const STEPS = ['الخطوة ١ من ٣ · الصور', 'الخطوة ٢ من ٣ · الصوت والسطور', 'الخطوة ٣ من ٣ · الفيلم'];
@@ -276,7 +278,7 @@ function update() {
 }
 
 $('backBtn').addEventListener('click', (e) => {
-  if (step === 1 || busy) return;   // the first step goes back home
+  if (step === 1 || busy) return;   // the first step goes back to the saved trips
   e.preventDefault();
   stopRecording(true);
   show(step - 1);
@@ -567,13 +569,21 @@ $('shareBtn').addEventListener('click', async () => {
 });
 
 // the account page lists the saved trips (this browser only; the video itself stays a download)
+// Saved trips ("رحلاتك المحفوظة", memories.html): the film itself, its title and a small thumbnail
+function thumb() {
+  const img = photos[0]?.img;
+  if (!img) return '';
+  const c = document.createElement('canvas');
+  const s = 240 / Math.min(img.width, img.height);
+  c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.72);
+}
 function remember() {
-  try {
-    const list = JSON.parse(localStorage.getItem('laqya-memories') || '[]');
-    list.unshift({ at: Date.now(), story: photos.map((p) => p.caption.trim()).filter(Boolean).join(' · ').slice(0, 120),
-      voice: voiceMode(), photos: photos.length, seconds: film.seconds() });
-    localStorage.setItem('laqya-memories', JSON.stringify(list.slice(0, 20)));
-  } catch {}
+  trips.save({
+    title: title(), photos: photos.length, seconds: film.seconds(), voice: voiceMode(), thumb: thumb(), type: saved.type,
+    story: photos.map((p) => p.caption.trim()).filter(Boolean).join(' · ').slice(0, 160),
+  }, saved.blob).catch(() => {});
 }
 
 // ---------- start ----------
