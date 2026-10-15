@@ -40,7 +40,7 @@ export async function initGuide() {
     demo = res.ok && (await res.json()).demo === true;
   } catch { demo = false; }
   labels();
-  // He waves and introduces himself once the scene is up, and the greeting stays while the panel is closed
+  // He waves and introduces himself once the scene is up; the greeting stays a few seconds, then goes
   setTimeout(() => {
     $('guideBtn').classList.add('waving');
     greet();
@@ -49,32 +49,13 @@ export async function initGuide() {
   document.addEventListener('panel:close', () => {
     $('panel').classList.remove('guide-mode');
     document.body.classList.remove('asking');
-    greet();
-  });
-  // At each stop his bubble says a line about it (tour.js sends the stop with its text); the first stop greets
-  document.addEventListener('tour:arrive', (e) => {
-    here = e.detail.index > 0 ? e.detail.story : null;
-    greet();
   });
 }
 
-// What his bubble says: the greeting at the start, then a line about the stop the visitor is at
-let here = null;
+const GREET_MS = 6000;   // how long his greeting shows at the start
 function greet() {
   if (!$('panel').classList.contains('closed')) return;
-  say(lineFor(here) || speakLang().greet);
-}
-
-// The first sentence of what he tells at the stop (Arabic), or its name and an invitation to ask
-function lineFor(stop) {
-  if (!stop) return '';
-  const code = speakLang().code;
-  if (code === 'ar' && stop.say) {
-    const first = stop.say.split(/(?<=[.!؟?…])\s+/)[0].trim();
-    return first.length > 90 ? first.slice(0, 88).replace(/\s+\S*$/, '') + '…' : first;
-  }
-  if (code === 'en') return `This is ${stop.title_en || 'the next stop'}. Ask me anything about it!`;
-  return '';   // other languages: his greeting in that language stays
+  say(speakLang().greet, GREET_MS);
 }
 
 // A realistic picture (web/guide.png) replaces the drawing when it exists
@@ -151,7 +132,7 @@ function labels() {
     return b;
   }));
   if (!$('panel').classList.contains('closed') && $('panel').classList.contains('guide-mode')) welcome();
-  else if ($('guideBubble').classList.contains('on')) greet();
+  else if ($('guideBubble').classList.contains('on')) greet();   // still greeting: in the new language
 }
 
 function setSpoken(on) {
