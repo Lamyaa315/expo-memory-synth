@@ -51,11 +51,30 @@ export async function initGuide() {
     document.body.classList.remove('asking');
     greet();
   });
+  // At each stop his bubble says a line about it (tour.js sends the stop with its text); the first stop greets
+  document.addEventListener('tour:arrive', (e) => {
+    here = e.detail.index > 0 ? e.detail.story : null;
+    greet();
+  });
 }
 
+// What his bubble says: the greeting at the start, then a line about the stop the visitor is at
+let here = null;
 function greet() {
   if (!$('panel').classList.contains('closed')) return;
-  say(speakLang().greet);
+  say(lineFor(here) || speakLang().greet);
+}
+
+// The first sentence of what he tells at the stop (Arabic), or its name and an invitation to ask
+function lineFor(stop) {
+  if (!stop) return '';
+  const code = speakLang().code;
+  if (code === 'ar' && stop.say) {
+    const first = stop.say.split(/(?<=[.!؟?…])\s+/)[0].trim();
+    return first.length > 90 ? first.slice(0, 88).replace(/\s+\S*$/, '') + '…' : first;
+  }
+  if (code === 'en') return `This is ${stop.title_en || 'the next stop'}. Ask me anything about it!`;
+  return '';   // other languages: his greeting in that language stays
 }
 
 // A realistic picture (web/guide.png) replaces the drawing when it exists
@@ -132,7 +151,7 @@ function labels() {
     return b;
   }));
   if (!$('panel').classList.contains('closed') && $('panel').classList.contains('guide-mode')) welcome();
-  else if ($('guideBubble').classList.contains('on')) say(speakLang().greet);
+  else if ($('guideBubble').classList.contains('on')) greet();
 }
 
 function setSpoken(on) {
