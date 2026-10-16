@@ -45,6 +45,16 @@
   }
   .empty p { max-width: 28ch; line-height: 1.8; font-weight: 300; margin: 0; }
   .empty[hidden] { display: none; }
+  .loader { position: fixed; inset: 0; z-index: 4; display: grid; place-content: center; justify-items: center; gap: .9rem;
+    color: #fff; text-align: center; pointer-events: none; font-family: "IBM Plex Sans Arabic", var(--font); }
+  .loader[hidden] { display: none; }
+  .loader img { width: 112px; height: auto; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, .4)); }
+  .loader p { margin: 0; font-size: .95rem; opacity: .85; }
+  .loader-bar { width: 160px; height: 4px; border-radius: 99px; background: rgba(255, 255, 255, .18); overflow: hidden; }
+  .loader-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: #fff; transition: width .3s ease; }
+  .loader.busy .loader-bar i { width: 35% !important; animation: loader-slide 1.2s ease-in-out infinite; }
+  @keyframes loader-slide { from { transform: translateX(-120%); } to { transform: translateX(320%); } }
+  @media (prefers-reduced-motion: reduce) { .loader.busy .loader-bar i { animation: none; width: 100% !important; opacity: .6; } }
 
   .panel {
     position: fixed; z-index: 10;
@@ -534,7 +544,14 @@
 <body>
   <div id="stage" aria-label="مشهد ثلاثي الأبعاد للجناح"></div>
 
-  <div class="empty" id="empty">
+  <!-- Loading the pavilion: one simple card instead of the 3D library's own spinner -->
+  <div class="loader" id="loader" role="status" aria-live="polite" hidden>
+    <img src="img/logo.png" alt="لقيا">
+    <p id="loaderText">نجهّز الجناح…</p>
+    <div class="loader-bar"><i id="loaderBar"></i></div>
+  </div>
+
+  <div class="empty" id="empty" hidden>
     <p>ما فيه مشهد محمّل. اختر ملف <bdi>.ply</bdi> من جهازك، أو ضعه في مجلد <bdi>web</bdi> باسم <bdi>scene.ply</bdi>.</p>
   </div>
 
@@ -824,26 +841,35 @@ async function loadScene(url, format) {
     sharedMemoryForWorkers: false,   // works on plain static hosting (GitHub Pages)
     ...(LITE && { halfPrecisionCovariancesOnGPU: true, antialiased: false }),   // phones: less GPU memory
   });
-  const opts = { showLoadingUI: true, splatAlphaRemovalThreshold: 5 };
+  // our own loader (#loader) shows the progress: download percent, then a short "preparing" while the scene builds
+  const progress = (pct, label, status) => {
+    const downloading = status === 0;   // the library's LoaderStatus.Downloading (not exported)
+    $('loader').classList.toggle('busy', !downloading);
+    $('loaderBar').style.width = `${Math.round(pct)}%`;
+    $('loaderText').textContent = downloading && pct < 100 ? `نحمّل الجناح… ${Math.round(pct)}٪` : 'نجهّز المشهد…';
+  };
+  const opts = { showLoadingUI: false, splatAlphaRemovalThreshold: 5, onProgress: progress };
   if (format !== undefined) opts.format = format;
   const extras = url === URL_DEFAULT ? SCENE.extras || [] : [];
   if (extras.length) {
     // The scan and the pieces that belong to its tour, in one space
     await viewer.addSplatScenes([{ path: url, ...opts }, ...extras.map((x) => ({
       path: sceneUrl(LITE && x.lite ? x.lite : x.file), position: x.position || [0, 0, 0], splatAlphaRemovalThreshold: opts.splatAlphaRemovalThreshold,
-    }))], true);
+    }))], false, progress);
   } else {
     await viewer.addSplatScene(url, opts);
   }
   viewer.start();
   trackSorting(viewer);
   $('empty').hidden = true;
+  $('loader').hidden = true;
 }
 
 async function tryDefaultScene() {
   try {
     const url = await findScene();
-    if (!url) return;
+    if (!url) { $('empty').hidden = false; return; }
+    $('loader').hidden = false;
     URL_DEFAULT = url;
     await loadScene(url);
     // The tour, hotspots and limits belong to this scene, so they only load with it (not with a file opened by hand)
@@ -853,6 +879,7 @@ async function tryDefaultScene() {
     if (!editMode && !tour?.walk) enableLimits(viewer);
   } catch (e) {
     console.error(e);
+    $('loader').hidden = true;
     // The browser refused 3D graphics (WebGL), usually after the page crashed a few times: say so, not "no scene"
     if (/WebGL/i.test(String(e?.message || e))) {
       $('empty').hidden = false;

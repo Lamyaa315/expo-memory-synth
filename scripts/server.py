@@ -318,17 +318,27 @@ class Gemini:
             "GEMINI_FALLBACK_MODELS", "gemini-3.8-flash,gemini-3.5-flash,gemini-flash-lite-latest").split(",")]
         self.name = f"Gemini {self.model}"
 
-    def ask(self, system, messages, images=(), max_tokens=MAX_ANSWER_TOKENS):
+    def ask(self, system, messages, images=(), max_tokens=MAX_ANSWER_TOKENS, quick=False):
         contents = [{"role": "model" if m["role"] == "assistant" else "user", "parts": [{"text": m["content"]}]}
                     for m in messages]
         contents[0]["parts"][:0] = [{"inline_data": {"mime_type": t, "data": d}} for t, d in images]
         # Thinking models spend output tokens on thinking, so leave room for the answer itself
+        config = {"maxOutputTokens": max_tokens + 2000}
+        if quick:   # a visitor is waiting for Saad: barely think (seconds faster; the notes hold the facts)
+            config["thinkingConfig"] = {"thinkingLevel": os.getenv("GEMINI_THINKING", "low")}
         res = gemini_client.generate(self.model, {
             "system_instruction": {"parts": [{"text": system}]},
             "contents": contents,
-            "generationConfig": {"maxOutputTokens": max_tokens + 2000},
+            "generationConfig": config,
         }, fallbacks=self.fallbacks)
         return gemini_client.text_of(res)
+
+
+def ask_quick(provider, system, messages, images):
+    """A question a visitor is waiting on: the fast path where the provider has one (Gemini's low thinking)."""
+    if isinstance(provider, Gemini):
+        return provider.ask(system, messages, images, quick=True).strip()
+    return provider.ask(system, messages, images).strip()
 
 
 class OpenAICompatible:
@@ -452,7 +462,7 @@ class Handler(SimpleHTTPRequestHandler):
             language=language_name(lang),
         )
         messages = clean_history(body.get("history")) + [{"role": "user", "content": question}]
-        answer = self.provider.ask(system, messages, [photo] if photo else []).strip()
+        answer = ask_quick(self.provider, system, messages, [photo] if photo else [])
         if not answer:
             return self.send_json(502, {"error": "empty"})
         return self.send_json(200, {"answer": answer})
@@ -483,7 +493,7 @@ class Handler(SimpleHTTPRequestHandler):
             language=language_name(lang),
         )
         messages = clean_history(body.get("history")) + [{"role": "user", "content": question}]
-        answer = self.provider.ask(system, messages, [view] if view else []).strip()
+        answer = ask_quick(self.provider, system, messages, [view] if view else [])
         if not answer:
             return self.send_json(502, {"error": "empty"})
         return self.send_json(200, {"answer": answer})
