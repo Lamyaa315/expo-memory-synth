@@ -99,31 +99,57 @@ export function prepare(text, lang) {
   if (serverVoice && text) clip(text, lang);
 }
 
+// A long answer that wasn't made ahead: its first sentence on its own (a short clip is ready sooner, so Saad
+// starts talking while the rest is still being made), then the rest. Lines prepared ahead stay whole.
+function pieces(text, lang) {
+  if (ready.has(`${lang || ''}|${text}`) || text.length < 90) return [text];
+  const parts = text.split(/(?<=[.!؟?…。।])\s+/).filter(Boolean);
+  let first = parts[0];
+  // a long first sentence: up to its first comma (the clip's wait grows with its length)
+  const comma = first.length > 70 ? first.slice(25).search(/[،,、]\s/) : -1;
+  if (comma >= 0) first = first.slice(0, 25 + comma + 1);
+  const rest = text.slice(text.indexOf(first) + first.length).trim();
+  return rest ? [first, rest] : [text];
+}
+
+// Plays one clip; resolves when it ends (false if something else started talking meanwhile)
+function playClip(blob, t, first) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    if (t !== token) { URL.revokeObjectURL(url); return resolve(false); }
+    player.src = url;
+    player.onended = () => { URL.revokeObjectURL(url); resolve(t === token); };
+    player.play().catch((e) => {
+      if (first && e?.name === 'NotAllowedError' && onBlocked && t === token) {
+        // The audio is ready but needs a tap: hand the visitor a button that plays it
+        const blocked = onBlocked;
+        onBlocked = null;
+        blocked(() => { player.play().catch(() => {}); });
+        return;   // resolves when that tap's playback ends
+      }
+      URL.revokeObjectURL(url);
+      reject(e);
+    });
+  });
+}
+
 async function speakNow(text, t, lang) {
   if (!text) return finish(t);
   if (serverVoice) {
+    const parts = pieces(text, lang);
+    parts.forEach((part) => clip(part, lang));   // all made at once, played in order
+    let said = 0;
     try {
-      const blob = await clip(text, lang);
-      if (!blob) throw new Error('no clip');
-      const url = URL.createObjectURL(blob);
-      if (t !== token) return URL.revokeObjectURL(url);
-      player.src = url;
-      player.onended = () => { URL.revokeObjectURL(url); finish(t); };
-      try {
-        await player.play();
-      } catch (e) {
-        if (e?.name === 'NotAllowedError' && onBlocked && t === token) {
-          // The audio is ready but needs a tap: hand the visitor a button that plays it
-          const blocked = onBlocked;
-          onBlocked = null;
-          blocked(() => { player.play().catch(() => {}); });
-          return;
-        }
-        throw e;
+      for (const part of parts) {
+        const blob = await clip(part, lang);
+        if (!blob) throw new Error('no clip');
+        if (!(await playClip(blob, t, said === 0))) return;
+        said++;
       }
-      return;
+      return finish(t);
     } catch {
       if (t !== token) return;
+      if (said) return browserSpeak(parts.slice(said).join(' '), t, lang);
     }
   }
   browserSpeak(text, t, lang);
